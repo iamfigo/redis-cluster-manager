@@ -1187,6 +1187,7 @@ public class RedisClusterManager {
 		//		args = new String[] { "keysize"};
 		//args = new String[] { "monitor", "2" };
 		//		args = new String[] { "raminfo", "*" };
+		args = new String[] { "raminfo-node", "172.20.16.89:5001" };
 		//args = new String[] { "rubbish-del" };
 		//args = new String[] { "reshard", "172.20.16.87:29000", "0-1024;1025-2048;4096-4096;4098-4301" };
 		//"reshard"  "192.168.254.129:5000"  "0-1024;1025-2048;4096-4096;4098-4301"
@@ -1218,7 +1219,12 @@ public class RedisClusterManager {
 					System.out.println("参数错误！");
 				}
 			} else if ("raminfo".equals(args[0])) {
-				rcm.raminfo();
+				if (args.length == 2) {
+					rcm.raminfo(args[1]);
+				} else {
+					rcm.raminfo(null);
+				}
+			} else if ("raminfo".equals(args[0])) {
 			} else if ("rubbish-del".equals(args[0])) {
 				rcm.rubbishDel();
 			} else if ("create".equals(args[0])) {
@@ -1429,14 +1435,19 @@ public class RedisClusterManager {
 	/**
 	 * 按key分类进行统计
 	 */
-	public void raminfo() {
+	public void raminfo(String node) {
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
 		while (nodes.hasNext()) {
 			Entry<String, JedisPool> entry = nodes.next();
+			if (null != node) {
+				if (!node.equals(entry.getKey())) {
+					continue;
+				}
+			}
 			final Jedis nodeCli = entry.getValue().getResource();
 			String info = entry.getValue().getResource().info();
-			if (info.contains("role:slave")) {//只导出master
+			if (null == node && info.contains("role:slave")) {//如果没有指定节点，统计所有master
 				continue;
 			}
 			Thread exportThread = new Thread(new Runnable() {
@@ -1483,7 +1494,7 @@ public class RedisClusterManager {
 					} while ((!"0".equals(cursor)));
 				}
 
-			}, entry.getKey() + "export thread");
+			}, entry.getKey() + "raminfo thread");
 			exportTheadList.add(exportThread);
 			exportThread.start();
 		}
@@ -2162,8 +2173,7 @@ public class RedisClusterManager {
 		System.out.println("monitor :[sleep second] monitor cluster status");
 		System.out.println("querys \t:query use pattern");
 		System.out.println("reshard \t:[host:port](master) [1-1024;1025-2048](slot range)");
-		System.out.println("raminfo \t:分析服务器内存信息");
-		System.out.println("rubbish-del \t:删除关注流垃圾数据");
+		System.out.println("raminfo \t:[host:port]default all node raminfo analysis");
 		System.out.println("set \t:[key][value] set a string type value");
 		System.out.println("others \t:use redis-cli to execute others command(linux only)");
 	}
