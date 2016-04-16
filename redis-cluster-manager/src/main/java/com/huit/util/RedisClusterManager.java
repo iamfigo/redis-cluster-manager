@@ -1187,7 +1187,7 @@ public class RedisClusterManager {
 		//		args = new String[] { "keysize"};
 		//args = new String[] { "monitor", "2" };
 		//		args = new String[] { "raminfo", "*" };
-		args = new String[] { "raminfo-node", "172.20.16.89:5001" };
+		//args = new String[] { "raminfo", "172.20.16.89:5001" };
 		//args = new String[] { "rubbish-del" };
 		//args = new String[] { "reshard", "172.20.16.87:29000", "0-1024;1025-2048;4096-4096;4098-4301" };
 		//"reshard"  "192.168.254.129:5000"  "0-1024;1025-2048;4096-4096;4098-4301"
