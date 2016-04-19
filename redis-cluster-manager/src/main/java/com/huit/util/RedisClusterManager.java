@@ -1408,23 +1408,36 @@ public class RedisClusterManager {
 
 	public Map<String, AtomicLong> ramSizeCount = new ConcurrentHashMap<String, AtomicLong>();
 	public Map<String, AtomicLong> ramKeyCount = new ConcurrentHashMap<String, AtomicLong>();
+	public StringBuffer ramUnknowKey = new StringBuffer();
 
 	private void writeRamInfo() {
+		BufferedWriter raminfoUnknow = null;
 		try {
 			Iterator<Entry<String, AtomicLong>> it = ramKeyCount.entrySet().iterator();
 			System.out.println(" key type size:" + ramKeyCount.size());
+			bw = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfo.csv"));
 			bw = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfo.csv"));
 			while (it.hasNext()) {
 				Entry<String, AtomicLong> entry = it.next();
 				String info = entry.getKey() + "," + entry.getValue() + "," + ramSizeCount.get(entry.getKey()) + "\r\n";
 				bw.write(info);
 			}
+			raminfoUnknow = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfoUnknowKey.txt", true));
+			raminfoUnknow.write(ramUnknowKey.toString());
+			ramUnknowKey = new StringBuffer();
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
 			try {
 				if (null != bw) {
 					bw.close();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			try {
+				if (null != raminfoUnknow) {
+					raminfoUnknow.close();
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -1466,16 +1479,23 @@ public class RedisClusterManager {
 							debug = debug.substring(startIndex + len, endIndex);
 
 							int i = 0;
-							for (; i < key.length(); i++) {
-								if (i != 0 && key.charAt(i) >= '0' && key.charAt(i) <= '9' && key.charAt(i - 1) == '_') {
-									key = key.substring(0, i - 1);
-									break;
-								}
-								i++;
-							}
+							//key = "s_f_p_266158_79889725";
 
-							if (i == key.length() && !key.startsWith("rpcUserInfo")) {//没有加业务前缀
-								key = "unknown";
+							if (key.startsWith("rpcUserInfo")) {
+								key = "rpcUserInfo";
+							} else {
+								char c;
+								for (; i < key.length(); i++) {
+									c = key.charAt(i);
+									if (i > 0 && c >= '0' && c <= '9' && key.charAt(i - 1) == '_') {
+										key = key.substring(0, i - 1);
+										break;
+									}
+								}
+								if (i == key.length()) {//没有加业务前缀
+									ramUnknowKey.append(key).append(',');
+									key = "unknown";
+								}
 							}
 
 							AtomicLong sizeCount = ramSizeCount.get(key);
