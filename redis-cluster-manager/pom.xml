@@ -39,7 +39,7 @@
 					</descriptorRefs>
 					<archive>
 						<manifest>
-							<mainClass>com.huit.util.RedisClusterUtil</mainClass>
+							<mainClass>com.huit.util.RedisClusterManager</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
