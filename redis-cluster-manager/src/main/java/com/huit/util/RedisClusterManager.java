@@ -1467,13 +1467,14 @@ public class RedisClusterManager {
 
 							int i = 0;
 							for (; i < key.length(); i++) {
-								if (i != 0 && key.charAt(i) >= '0' && key.charAt(i) <= '9') {
+								if (i != 0 && key.charAt(i) >= '0' && key.charAt(i) <= '9' && key.charAt(i - 1) == '_') {
 									key = key.substring(0, i - 1);
+									break;
 								}
 								i++;
 							}
 
-							if (i == key.length() + 1) {//没有加业务前缀
+							if (i == key.length() && !key.startsWith("rpcUserInfo")) {//没有加业务前缀
 								key = "unknown";
 							}
 
