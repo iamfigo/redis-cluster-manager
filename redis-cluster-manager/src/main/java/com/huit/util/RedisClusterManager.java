@@ -1356,7 +1356,11 @@ public class RedisClusterManager {
 					sleepTime = Long.valueOf(args[1]) * 1000;
 				}
 				while (true) {
-					rcm.monitor(args);
+					try {
+						rcm.monitor(args);
+					} catch (Throwable e) {
+						e.printStackTrace();
+					}
 					Thread.sleep(sleepTime);
 				}
 			} else if ("benchmark".equals(args[0])) {
