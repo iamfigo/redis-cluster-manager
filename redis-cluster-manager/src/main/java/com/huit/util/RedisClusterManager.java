@@ -849,6 +849,8 @@ public class RedisClusterManager {
 					System.out.println(entry.getKey() + " Connection refused");
 					continue;
 				}
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
 			if (info.contains("role:slave")) {//只统计master
 				continue;
