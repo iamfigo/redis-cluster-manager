@@ -455,7 +455,7 @@ public class RedisClusterManager {
 							} else {
 								System.out.println("unknow keyType:" + keyType + "key:" + key);
 							}
-							writeFile(json.toJSONString());
+							writeFile(json.toJSONString(), "export");
 						}
 					} while ((!"0".equals(cursor)));
 				}
@@ -500,7 +500,7 @@ public class RedisClusterManager {
 		}
 	}
 
-	public synchronized void writeFile(String data) {
+	public synchronized void writeFile(String data, String optType) {
 		try {
 			bw.write(data);
 			bw.write('\r');
@@ -510,7 +510,7 @@ public class RedisClusterManager {
 				if (readLastCountTime > 0) {
 					long useTime = System.currentTimeMillis() - readLastCountTime;
 					float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
-					System.out.println("export count:" + count + " speed:" + speedFormat.format(speed));
+					System.out.println(optType + " count:" + count + " speed:" + speedFormat.format(speed));
 				}
 				readLastCountTime = System.currentTimeMillis();
 				lastReadCount.set(count);
@@ -1094,33 +1094,71 @@ public class RedisClusterManager {
 	 * 按照key前缀清除缓存
 	 * @param pattern
 	 */
-	public void delKeyLike(String pattern) {
-		Jedis jedis = new Jedis(REDIS_HOST, REDIS_PORT);
-		String nodes = jedis.clusterNodes();
-		jedis.close();
-		int count = 0;
-		long beginTime = System.currentTimeMillis();
-		for (String node : nodes.split("\n")) {
-			String[] nodeInfo = node.split("\\s+");
-			String host = nodeInfo[1].split(":")[0];
-			int port = Integer.valueOf(nodeInfo[1].split(":")[1]);
-			String type = nodeInfo[2];
-			if (type.contains("master")) {
-				Jedis nodeCli = new Jedis(host, port);//连接redis 
-				Set<String> keys = nodeCli.keys(pattern);
-				Iterator<String> t1 = keys.iterator();
-
-				while (t1.hasNext()) {
-					String obj1 = t1.next();
-					nodeCli.del(obj1);
-					count++;
-				}
-				nodeCli.close();
+	public void dels(String keyPre, String filePath) {
+		final String[] exportKeyPre = keyPre.split(",");
+		createExportFile(filePath);
+		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
+		List<Thread> exportTheadList = new ArrayList<Thread>();
+		while (nodes.hasNext()) {
+			Entry<String, JedisPool> entry = nodes.next();
+			try {
+				entry.getValue().getResource();
+			} catch (redis.clients.jedis.exceptions.JedisConnectionException e) {//有失败的节点连不上
+				System.out.println(entry.getKey() + " conn error:" + e.getMessage());
+				continue;
 			}
+			final Jedis nodeCli = entry.getValue().getResource();
+			String info = entry.getValue().getResource().info();
+			if (info.contains("role:slave")) {//只能从master删除
+				continue;
+			}
+			Thread exportThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					String cursor = "0";
+					do {
+						ScanResult<String> keys = nodeCli.scan(cursor);
+						cursor = keys.getStringCursor();
+						List<String> result = keys.getResult();
+						for (String key : result) {
+							for (String keyExport : exportKeyPre) {
+								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
+									writeFile(key, "del");
+									break;
+								}
+							}
+						}
+					} while ((!"0".equals(cursor)));
+				}
+			}, entry.getKey() + "del thread");
+			exportTheadList.add(exportThread);
+			exportThread.start();
 		}
-		SimpleDateFormat dfs = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss [");
-		System.out.println(dfs.format(new Date()) + pattern + "] delk count->" + count + " useTime->"
-				+ ((System.currentTimeMillis() - beginTime)) + "ms ");
+
+		for (Thread thread : exportTheadList) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
+		float speed = (float) (totalCount / (useTime / 1000.0));
+		System.out.println("del total:" + totalCount + " speed:" + speedFormat.format(speed) + " useTime:"
+				+ (useTime / 1000.0) + "s");
+
+		try {
+			if (null != bw) {
+				bw.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -1266,12 +1304,10 @@ public class RedisClusterManager {
 					System.out.println("请输入要添加的 主节点");
 				}
 			} else if ("dels".equals(args[0])) {
-				if (args.length == 1) {
-					System.out.println("请输入要清除的key前缀");
+				if (args.length == 3) {
+					rcm.dels(args[1], args[2]);
 				} else {
-					for (int i = 1; i < args.length; i++) {
-						rcm.delKeyLike(args[i]);
-					}
+					System.out.println("dels keyPattern D:/delKey.dat");
 				}
 			} else if ("counts".equals(args[0])) {
 				if (args.length == 1) {
@@ -2185,7 +2221,7 @@ public class RedisClusterManager {
 		System.out.println("count \t:[keyPattern] count key count use keyPattern");
 		System.out.println("create \t:[maser->slave;master2->slave2;...] create cluster");
 		System.out.println("del \t:[key] del one key");
-		System.out.println("dels \t:[keyPattern] del use keyPattern");
+		System.out.println("dels \t:[keyPattern][delKeyFileSavePath] del use keyPattern");
 		System.out.println("del-node \t:[host:port]");
 		System.out.println("del-node-id \t:[node-id]del node use id");
 		System.out.println("export \t:[keyPattern][outputFilePath] use * to export all");
