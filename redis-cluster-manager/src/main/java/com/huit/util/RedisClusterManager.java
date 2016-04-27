@@ -1465,7 +1465,8 @@ public class RedisClusterManager {
 				String info = entry.getKey() + "," + entry.getValue() + "," + ramSizeCount.get(entry.getKey()) + "\r\n";
 				bw.write(info);
 			}
-			raminfoUnknow = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfoUnknowKey.txt"));
+			raminfoUnknow = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfoUnknowKey.txt", true));
+			ramUnknowKey.append("\r\n");
 			raminfoUnknow.write(ramUnknowKey.toString());
 			ramUnknowKey = new StringBuffer();
 		} catch (IOException e) {
@@ -1532,6 +1533,8 @@ public class RedisClusterManager {
 								key = "historyappmessages";
 							} else if (key.startsWith("historyadminmessages")) {
 								key = "historyadminmessages";
+							} else if (key.startsWith("user_relations")) {
+								key = "user_relations";
 							} else {
 								char c;
 								boolean isFindDecollator = false, isKnowBusiness = false;
@@ -1600,7 +1603,7 @@ public class RedisClusterManager {
 	}
 
 	/**
-	 * 删除视频项目垃圾key
+	 * 删除关注流垃圾key
 	 */
 	public void rubbishDel() {
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
@@ -1672,6 +1675,96 @@ public class RedisClusterManager {
 									cluster.del(key);
 									key = "s_f_p_" + show_id + "_" + uid;
 									cluster.del(key);
+								}
+							}
+
+							long scanCount = readCount.incrementAndGet();
+							if (scanCount % 10000 == 0) {
+								System.out.println("scan key size:" + scanCount + " del key size:" + delCount.get());
+							}
+						}
+					} while ((!"0".equals(cursor)));
+				}
+
+			}, entry.getKey() + "export thread");
+			exportTheadList.add(exportThread);
+			exportThread.start();
+		}
+
+		for (Thread thread : exportTheadList) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
+		float speed = (float) (totalCount / (useTime / 1000.0));
+		System.out.println("scan total:" + totalCount + " del key size:" + delCount.get() + " speed:"
+				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+	}
+
+	/**
+	 * 删除关注流垃圾key
+	 */
+	public void rubbishH5Del() {
+		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
+		List<Thread> exportTheadList = new ArrayList<Thread>();
+		while (nodes.hasNext()) {
+			Entry<String, JedisPool> entry = nodes.next();
+			final Jedis nodeCli = entry.getValue().getResource();
+			String info = entry.getValue().getResource().info();
+			if (info.contains("role:slave")) {
+				continue;
+			}
+			final String checkFiled = "longUrl";
+			Thread exportThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					String cursor = "0";
+					do {
+						ScanResult<String> keys = nodeCli.scan(cursor);
+						cursor = keys.getStringCursor();
+						List<String> result = keys.getResult();
+						for (String key : result) {
+							if (key.startsWith("rpcUserInfo")) {
+								key = "rpcUserInfo";
+							} else if (key.startsWith("s_url")) {
+								key = "s_url";
+							} else if (key.startsWith("historyappmessages")) {
+								key = "historyappmessages";
+							} else if (key.startsWith("historyadminmessages")) {
+								key = "historyadminmessages";
+							} else if (key.startsWith("user_relations")) {
+								key = "user_relations";
+							} else {
+								char c;
+								boolean isFindDecollator = false, isKnowBusiness = false;
+								int i = 0;
+								for (; i < key.length(); i++) {
+									c = key.charAt(i);
+									if (key.charAt(i) == '_') {
+										isFindDecollator = true;
+									}
+									if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
+										key = key.substring(0, i);
+										isKnowBusiness = true;
+										break;
+									}
+								}
+								if (!isKnowBusiness && !isFindDecollator) {//没有加业务前缀
+									String keyType = nodeCli.type(key);
+									if ("hash".equals(keyType)) {
+										String value = nodeCli.hget(key, checkFiled);
+										if (value.startsWith("http://live.jumei.com/show/share/lv.jsp")) {
+											nodeCli.del(key);
+										}
+									}
 								}
 							}
 
