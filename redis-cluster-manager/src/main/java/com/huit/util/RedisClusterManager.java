@@ -1526,6 +1526,10 @@ public class RedisClusterManager {
 
 							if (key.startsWith("rpcUserInfo")) {
 								key = "rpcUserInfo";
+							} else if (key.startsWith("s_url")) {
+								key = "s_url";
+							} else if (key.startsWith("historyappmessages")) {
+								key = "s_url";
 							} else {
 								char c;
 								for (; i < key.length(); i++) {
