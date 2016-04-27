@@ -1713,6 +1713,8 @@ public class RedisClusterManager {
 	 * 删除关注流垃圾key
 	 */
 	public void rubbishH5Del() {
+		final String[] exportKeyPre = "s_u_f_,s_f_l_,s_f_p_".split(",");
+		createExportFile(SystemConf.confFileDir + "/deleted-key.txt");
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
 		while (nodes.hasNext()) {
@@ -1732,37 +1734,50 @@ public class RedisClusterManager {
 						cursor = keys.getStringCursor();
 						List<String> result = keys.getResult();
 						for (String key : result) {
-							if (key.startsWith("rpcUserInfo")) {
-								key = "rpcUserInfo";
-							} else if (key.startsWith("s_url")) {
-								key = "s_url";
-							} else if (key.startsWith("historyappmessages")) {
-								key = "historyappmessages";
-							} else if (key.startsWith("historyadminmessages")) {
-								key = "historyadminmessages";
-							} else if (key.startsWith("user_relations")) {
-								key = "user_relations";
-							} else {
-								char c;
-								boolean isFindDecollator = false, isKnowBusiness = false;
-								int i = 0;
-								for (; i < key.length(); i++) {
-									c = key.charAt(i);
-									if (key.charAt(i) == '_') {
-										isFindDecollator = true;
-									}
-									if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
-										key = key.substring(0, i);
-										isKnowBusiness = true;
-										break;
-									}
+							boolean isAttetionKey = false;
+							for (String keyExport : exportKeyPre) {
+								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
+									nodeCli.del(key);
+									writeFile(key, "del");//关注流删除
+									isAttetionKey = true;
+									break;
 								}
-								if (!isKnowBusiness && !isFindDecollator) {//没有加业务前缀
-									String keyType = nodeCli.type(key);
-									if ("hash".equals(keyType)) {
-										String value = nodeCli.hget(key, checkFiled);
-										if (value.startsWith("http://live.jumei.com/show/share/lv.jsp")) {
-											nodeCli.del(key);
+							}
+							
+							if (!isAttetionKey) {
+								if (key.startsWith("rpcUserInfo")) {
+									key = "rpcUserInfo";
+								} else if (key.startsWith("s_url")) {
+									key = "s_url";
+								} else if (key.startsWith("historyappmessages")) {
+									key = "historyappmessages";
+								} else if (key.startsWith("historyadminmessages")) {
+									key = "historyadminmessages";
+								} else if (key.startsWith("user_relations")) {
+									key = "user_relations";
+								} else {
+									char c;
+									boolean isFindDecollator = false, isKnowBusiness = false;
+									int i = 0;
+									for (; i < key.length(); i++) {
+										c = key.charAt(i);
+										if (key.charAt(i) == '_') {
+											isFindDecollator = true;
+										}
+										if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
+											key = key.substring(0, i);
+											isKnowBusiness = true;
+											break;
+										}
+									}
+									if (!isKnowBusiness && !isFindDecollator) {//没有加业务前缀
+										String keyType = nodeCli.type(key);
+										if ("hash".equals(keyType)) {
+											String value = nodeCli.hget(key, checkFiled);
+											if (value.startsWith("http://live.jumei.com/show/share/lv.jsp")) {
+												nodeCli.del(key);
+												writeFile(key, "del");
+											}
 										}
 									}
 								}
