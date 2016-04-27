@@ -1465,7 +1465,7 @@ public class RedisClusterManager {
 				String info = entry.getKey() + "," + entry.getValue() + "," + ramSizeCount.get(entry.getKey()) + "\r\n";
 				bw.write(info);
 			}
-			raminfoUnknow = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfoUnknowKey.txt", true));
+			raminfoUnknow = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfoUnknowKey.txt"));
 			raminfoUnknow.write(ramUnknowKey.toString());
 			ramUnknowKey = new StringBuffer();
 		} catch (IOException e) {
