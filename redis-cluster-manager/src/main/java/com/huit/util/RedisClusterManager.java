@@ -1522,24 +1522,31 @@ public class RedisClusterManager {
 							debug = debug.substring(startIndex + len, endIndex);
 
 							int i = 0;
-							//key = "s_f_p_266158_79889725";
+							//key = "s_c_p23926";//testkey
 
 							if (key.startsWith("rpcUserInfo")) {
 								key = "rpcUserInfo";
 							} else if (key.startsWith("s_url")) {
 								key = "s_url";
 							} else if (key.startsWith("historyappmessages")) {
-								key = "s_url";
+								key = "historyappmessages";
+							} else if (key.startsWith("historyadminmessages")) {
+								key = "historyadminmessages";
 							} else {
 								char c;
+								boolean isFindDecollator = false, isKnowBusiness = false;
 								for (; i < key.length(); i++) {
 									c = key.charAt(i);
-									if (i > 0 && c >= '0' && c <= '9' && key.charAt(i - 1) == '_') {
-										key = key.substring(0, i - 1);
+									if (key.charAt(i) == '_') {
+										isFindDecollator = true;
+									}
+									if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
+										key = key.substring(0, i);
+										isKnowBusiness = true;
 										break;
 									}
 								}
-								if (i == key.length()) {//没有加业务前缀
+								if (!isKnowBusiness && !isFindDecollator) {//没有加业务前缀
 									ramUnknowKey.append(key).append(',');
 									key = "unknown";
 								}
