@@ -1690,6 +1690,13 @@ public class RedisClusterManager {
 												delCount.incrementAndGet();
 												writeFile(key, "del");
 											}
+										} else if ("string".equals(keyType)) {
+											String value = nodeCli.get(key);
+											if (value.length() == 6) {
+												nodeCli.del(key);
+												delCount.incrementAndGet();
+												writeFile(key, "del");
+											}
 										}
 									}
 								}
