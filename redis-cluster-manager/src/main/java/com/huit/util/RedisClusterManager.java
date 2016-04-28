@@ -1267,7 +1267,7 @@ public class RedisClusterManager {
 				}
 			} else if ("raminfo".equals(args[0])) {
 			} else if ("rubbish-del".equals(args[0])) {
-				rcm.rubbishDel();
+				rcm.rubbishH5Del();
 			} else if ("create".equals(args[0])) {
 				StringBuffer sb = new StringBuffer();
 				for (int i = 1; i < args.length; i++) {
@@ -1605,113 +1605,6 @@ public class RedisClusterManager {
 	/**
 	 * 删除关注流垃圾key
 	 */
-	public void rubbishDel() {
-		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
-		List<Thread> exportTheadList = new ArrayList<Thread>();
-		while (nodes.hasNext()) {
-			Entry<String, JedisPool> entry = nodes.next();
-			final Jedis nodeCli = entry.getValue().getResource();
-			String info = entry.getValue().getResource().info();
-			if (info.contains("role:slave")) {//只导出master
-				continue;
-			}
-			Thread exportThread = new Thread(new Runnable() {
-				@Override
-				public void run() {
-					String cursor = "0";
-					String show_id, uid;
-					String[] info;
-					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
-						cursor = keys.getStringCursor();
-						List<String> result = keys.getResult();
-						for (String key : result) {
-							if (key.startsWith("s_f_p_counsel_")) {
-								info = key.split("_");
-								show_id = "counsel_" + info[info.length - 2];
-								uid = info[info.length - 1];
-								String attentionKey = "s_u_f_" + uid;
-								Double score = cluster.zscore(attentionKey, "s_p_" + show_id);
-								if (null == score) {
-									delCount.getAndIncrement();
-									cluster.del(key);
-									key = "s_f_l_" + show_id + "_" + uid;
-									cluster.del(key);
-								}
-							} else if (key.startsWith("s_f_p_")) {
-								info = key.split("_");
-								show_id = info[info.length - 2];
-								uid = info[info.length - 1];
-								String attentionKey = "s_u_f_" + uid;
-								Double score = cluster.zscore(attentionKey, "s_p_" + show_id);
-								if (null == score) {
-									delCount.getAndIncrement();
-									cluster.del(key);
-									key = "s_f_l_" + show_id + "_" + uid;
-									cluster.del(key);
-								}
-							} else if (key.startsWith("s_f_l_counsel_")) {
-								info = key.split("_");
-								show_id = "counsel_" + info[info.length - 2];
-								uid = info[info.length - 1];
-
-								String attentionKey = "s_u_f_" + uid;
-								Double score = cluster.zscore(attentionKey, "s_l_" + show_id);
-								if (null == score) {
-									delCount.getAndIncrement();
-									cluster.del(key);
-									key = "s_f_p_" + show_id + "_" + uid;
-									cluster.del(key);
-								}
-							} else if (key.startsWith("s_f_l_")) {
-								info = key.split("_");
-								show_id = info[info.length - 2];
-								uid = info[info.length - 1];
-
-								String attentionKey = "s_u_f_" + uid;
-								Double score = cluster.zscore(attentionKey, "s_l_" + show_id);
-								if (null == score) {
-									delCount.getAndIncrement();
-									cluster.del(key);
-									key = "s_f_p_" + show_id + "_" + uid;
-									cluster.del(key);
-								}
-							}
-
-							long scanCount = readCount.incrementAndGet();
-							if (scanCount % 10000 == 0) {
-								System.out.println("scan key size:" + scanCount + " del key size:" + delCount.get());
-							}
-						}
-					} while ((!"0".equals(cursor)));
-				}
-
-			}, entry.getKey() + "export thread");
-			exportTheadList.add(exportThread);
-			exportThread.start();
-		}
-
-		for (Thread thread : exportTheadList) {
-			do {
-				if (thread.isAlive()) {
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-				}
-			} while (thread.isAlive());
-		}
-
-		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
-		float speed = (float) (totalCount / (useTime / 1000.0));
-		System.out.println("scan total:" + totalCount + " del key size:" + delCount.get() + " speed:"
-				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
-	}
-
-	/**
-	 * 删除关注流垃圾key
-	 */
 	public void rubbishH5Del() {
 		final String[] exportKeyPre = "s_u_f_,s_f_l_,s_f_p_".split(",");
 		createExportFile(SystemConf.confFileDir + "/deleted-key.txt");
@@ -1743,7 +1636,7 @@ public class RedisClusterManager {
 									break;
 								}
 							}
-							
+
 							if (!isAttetionKey) {
 								if (key.startsWith("rpcUserInfo")) {
 									key = "rpcUserInfo";
