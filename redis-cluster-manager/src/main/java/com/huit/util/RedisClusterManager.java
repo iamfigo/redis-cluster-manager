@@ -1524,7 +1524,7 @@ public class RedisClusterManager {
 
 							int i = 0;
 							//key = "s_c_p23926";//testkey
-							key = "pushswitch:91751566";//testkey
+							//key = "pushswitch:91751566";//testkey
 
 							if (key.startsWith("rpcUserInfo")) {
 								key = "rpcUserInfo";
