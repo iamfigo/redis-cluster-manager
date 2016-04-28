@@ -1542,6 +1542,8 @@ public class RedisClusterManager {
 								key = "followuser";
 							} else if (key.startsWith("user_relations")) {
 								key = "user_relations";
+							} else if (key.startsWith("user_relation_")) {
+								key = "user_relation_";
 							} else {
 								char c;
 								boolean isFindDecollator = false, isKnowBusiness = false;
@@ -1666,6 +1668,8 @@ public class RedisClusterManager {
 									key = "followuser";
 								} else if (key.startsWith("user_relations")) {
 									key = "user_relations";
+								} else if (key.startsWith("user_relation_")) {
+									key = "user_relation_";
 								} else {
 									char c;
 									boolean isFindDecollator = false, isKnowBusiness = false;
