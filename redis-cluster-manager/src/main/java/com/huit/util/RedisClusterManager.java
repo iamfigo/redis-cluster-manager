@@ -1524,6 +1524,7 @@ public class RedisClusterManager {
 
 							int i = 0;
 							//key = "s_c_p23926";//testkey
+							key = "pushswitch:91751566";//testkey
 
 							if (key.startsWith("rpcUserInfo")) {
 								key = "rpcUserInfo";
@@ -1543,7 +1544,11 @@ public class RedisClusterManager {
 									if (key.charAt(i) == '_') {
 										isFindDecollator = true;
 									}
-									if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
+									if (c == ':') {
+										isFindDecollator = true;
+										key = key.substring(0, i);
+										break;
+									} else if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
 										key = key.substring(0, i);
 										isKnowBusiness = true;
 										break;
