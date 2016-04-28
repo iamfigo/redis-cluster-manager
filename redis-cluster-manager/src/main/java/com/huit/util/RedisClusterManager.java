@@ -1643,6 +1643,7 @@ public class RedisClusterManager {
 								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
 									nodeCli.del(key);
 									writeFile(key, "del");//关注流删除
+									delCount.incrementAndGet();
 									isAttetionKey = true;
 									break;
 								}
@@ -1686,6 +1687,7 @@ public class RedisClusterManager {
 											String value = nodeCli.hget(key, checkFiled);
 											if (null != value && value.contains("share/lv.jsp")) {
 												nodeCli.del(key);
+												delCount.incrementAndGet();
 												writeFile(key, "del");
 											}
 										}
