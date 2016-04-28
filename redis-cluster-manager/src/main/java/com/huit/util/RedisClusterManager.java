@@ -1524,7 +1524,7 @@ public class RedisClusterManager {
 
 							int i = 0;
 							//key = "s_c_p23926";//testkey
-							//key = "pushswitch:91751566";//testkey
+							//key = "26228273praiseto101909365showid10290";//testkey
 
 							if (key.startsWith("rpcUserInfo")) {
 								key = "rpcUserInfo";
@@ -1534,6 +1534,8 @@ public class RedisClusterManager {
 								key = "historyappmessages";
 							} else if (key.startsWith("historyadminmessages")) {
 								key = "historyadminmessages";
+							} else if (key.contains("praiseto") && key.contains("showid")) {
+								key = "praisetoshowid";
 							} else if (key.startsWith("user_relations")) {
 								key = "user_relations";
 							} else {
