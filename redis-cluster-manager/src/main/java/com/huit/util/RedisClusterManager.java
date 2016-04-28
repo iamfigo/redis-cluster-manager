@@ -1530,12 +1530,16 @@ public class RedisClusterManager {
 								key = "rpcUserInfo";
 							} else if (key.startsWith("s_url")) {
 								key = "s_url";
+							} else if (key.startsWith("live_link_")) {
+								key = "live_link_";
 							} else if (key.startsWith("historyappmessages")) {
 								key = "historyappmessages";
 							} else if (key.startsWith("historyadminmessages")) {
 								key = "historyadminmessages";
 							} else if (key.contains("praiseto") && key.contains("showid")) {
 								key = "praisetoshowid";
+							} else if (key.contains("followuser")) {
+								key = "followuser";
 							} else if (key.startsWith("user_relations")) {
 								key = "user_relations";
 							} else {
@@ -1674,7 +1678,7 @@ public class RedisClusterManager {
 										String keyType = nodeCli.type(key);
 										if ("hash".equals(keyType)) {
 											String value = nodeCli.hget(key, checkFiled);
-											if (value.startsWith("http://live.jumei.com/show/share/lv.jsp")) {
+											if (value.contains("share/lv.jsp")) {
 												nodeCli.del(key);
 												writeFile(key, "del");
 											}
