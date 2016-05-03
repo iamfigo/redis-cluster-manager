@@ -544,6 +544,70 @@ public class RedisClusterManager {
 	/**
 	 * 按key导出数据
 	 */
+	public void keySizeCount(String key, String filePath) {
+		filePath += key;
+		String hcursor = "0";
+		JSONObject json = new JSONObject();
+		do {
+			ScanResult<Tuple> hscanResult = cluster.zscan(key, hcursor);
+			hcursor = hscanResult.getStringCursor();
+			String fileExt;
+			for (Tuple entry : hscanResult.getResult()) {
+				String uidKey = entry.getElement();
+				long zcard = cluster.zcard("u_f_" + uidKey);
+				json.put("uid", uidKey);
+				json.put("zcard", zcard);
+				if (zcard > 1000) {
+					fileExt = "1000+";
+				} else if (zcard > 500 && zcard <= 1000) {
+					fileExt = "500-1000";
+				} else if (zcard > 300 && zcard <= 500) {
+					fileExt = "300-500";
+				} else if (zcard > 200 && zcard <= 300) {
+					fileExt = "200-300";
+				} else if (zcard > 100 && zcard <= 200) {
+					fileExt = "100-200";
+				} else if (zcard >= 1 && zcard <= 100) {
+					fileExt = "1-100";
+				} else {
+					fileExt = "0";
+				}
+
+				BufferedWriter bw = null;
+				try {
+					bw = new BufferedWriter(new FileWriter(filePath + fileExt, true));
+					bw.write(json.toJSONString());
+					bw.write('\r');
+					bw.write('\n');
+				} catch (IOException e) {
+					e.printStackTrace();
+				} finally {
+					try {
+						if (null != bw) {
+							bw.close();
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+
+				long count = readCount.incrementAndGet();
+				if (count % 10000 == 0) {
+					if (readLastCountTime > 0) {
+						long useTime = System.currentTimeMillis() - readLastCountTime;
+						float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+						System.out.println(" count:" + count + " speed:" + speedFormat.format(speed));
+					}
+					readLastCountTime = System.currentTimeMillis();
+					lastReadCount.set(count);
+				}
+			}
+		} while (!"0".equals(hcursor));
+	}
+
+	/**
+	 * 按key导出数据
+	 */
 	public void exportKeys(String keys, String filePath) {
 		for (String key : keys.split(",")) {
 			JSONObject json = new JSONObject();
@@ -1230,6 +1294,7 @@ public class RedisClusterManager {
 		//		args = new String[] { "raminfo", "*" };
 		//args = new String[] { "raminfo", "172.20.16.89:5001" };
 		//args = new String[] { "rubbish-del" };
+		//args = new String[] { "key-size-count", "u_id_set", "D:/" };
 		//args = new String[] { "reshard", "172.20.16.87:29000", "0-1024;1025-2048;4096-4096;4098-4301" };
 		//"reshard"  "192.168.254.129:5000"  "0-1024;1025-2048;4096-4096;4098-4301"
 		//		args = new String[] { "set", "testkey", "testvalue" };
@@ -1385,6 +1450,12 @@ public class RedisClusterManager {
 				}
 			} else if ("keysize".equals(args[0])) {
 				rcm.keySize();
+			} else if ("key-size-count".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.keySizeCount(args[1], args[2]);
+				} else {
+					System.out.println("key-size-count u_id_set D:/");
+				}
 			} else if ("info".equals(args[0])) {
 				rcm.info(args);
 			} else if ("monitor".equals(args[0])) {
