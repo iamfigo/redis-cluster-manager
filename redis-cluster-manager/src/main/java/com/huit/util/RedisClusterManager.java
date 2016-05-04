@@ -1692,8 +1692,6 @@ public class RedisClusterManager {
 					}
 					Thread.sleep(sleepTime);
 				}
-			} else if ("benchmark".equals(args[0])) {
-				rcm.benchmark(args);
 			} else if ("check".equals(args[0])) {
 				rcm.check();
 			} else if ("flush".equals(args[0])) {
@@ -2407,92 +2405,6 @@ public class RedisClusterManager {
 			}
 		}
 		fixNode.close();
-	}
-
-	private void benchmark(String[] args) {
-		List<JSONObject> benckmarkData = new ArrayList<JSONObject>();
-		BufferedReader br = null;
-		try {
-			br = new BufferedReader(new FileReader(args[1]));
-			String data = null;
-			while ((data = br.readLine()) != null) {
-				JSONObject json = JSON.parseObject(data);
-				benckmarkData.add(json);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			try {
-				if (null != br) {
-					br.close();
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-		boolean isAddOffsetToKey = Boolean.parseBoolean(args[2]);
-		long offset = Long.parseLong(args[3]);
-		long limit = Long.parseLong(args[4]);
-		int importedCount = 0;
-		long beginTime = System.currentTimeMillis();
-
-		for (long i = offset; i < limit; i++) {
-			for (JSONObject json : benckmarkData) {
-				String key = json.getString("key");
-				if (isAddOffsetToKey) {
-					key = key + i;
-				}
-				String type = json.getString("type");
-				Object oject = json.get("value");
-
-				if ("hash".equals(type)) {
-					JSONArray value = (JSONArray) oject;
-					Iterator<Object> it = value.iterator();
-					Map<String, String> hash = new HashMap<String, String>();
-					while (it.hasNext()) {
-						JSONObject jsonData = (JSONObject) it.next();
-						String dataKey = jsonData.getString("key");
-						String dataValue = jsonData.getString("value");
-						hash.put(dataKey, dataValue);
-					}
-					cluster.hmset(key, hash);
-				} else if ("string".equals(type)) {
-					String dataValue = (String) oject;
-					cluster.set(key, dataValue);
-				} else if ("list".equals(type)) {
-					JSONArray value = (JSONArray) oject;
-					Iterator<Object> it = value.iterator();
-					while (it.hasNext()) {
-						String dataValue = (String) it.next();
-						cluster.rpush(key, dataValue);
-					}
-				} else if ("set".equals(type)) {
-					JSONArray value = (JSONArray) oject;
-					Iterator<Object> it = value.iterator();
-					while (it.hasNext()) {
-						String dataValue = (String) it.next();
-						cluster.sadd(key, dataValue, "b");//TODO test
-					}
-				} else if ("zset".equals(type)) {
-					JSONArray value = (JSONArray) oject;
-					Iterator<Object> it = value.iterator();
-					while (it.hasNext()) {
-						JSONObject jsonData = (JSONObject) it.next();
-						double score = jsonData.getLong("score");
-						String dataValue = jsonData.getString("value");
-						cluster.zadd(key, score, dataValue);
-					}
-				} else {
-					System.out.println("unknow keyType:" + type + "key:" + key);
-				}
-
-				importedCount++;
-				if (importedCount % 1000 == 0) {
-					System.out.println(" importedCount:" + importedCount + " useTime:"
-							+ (System.currentTimeMillis() - beginTime) / 1000 + "s");
-				}
-			}
-		}
 	}
 
 	static class TestClass implements Runnable {
