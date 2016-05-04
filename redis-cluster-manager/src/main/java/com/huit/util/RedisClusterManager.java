@@ -455,6 +455,8 @@ public class RedisClusterManager {
 							} else {
 								System.out.println("unknow keyType:" + keyType + "key:" + key);
 							}
+
+							json.put("time", System.currentTimeMillis());
 							writeFile(json.toJSONString(), "export");
 						}
 					} while ((!"0".equals(cursor)));
@@ -538,6 +540,225 @@ public class RedisClusterManager {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+		}
+	}
+
+	/**
+	 * 按照key前缀查询
+	 * @param importIfNotExit
+	 */
+	public void importKey2(final String indexKey, String preKey, final String filePath) {
+		final String[] importKeyPre = indexKey.split(",");
+
+		final List<JSONObject> dataQueue = Collections.synchronizedList(new LinkedList<JSONObject>());// 待处理数据队列
+
+		final Thread[] writeThread = new Thread[cluster.getClusterNodes().size() * 3];//节点数的3倍
+		Thread readThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+
+				String hcursor = "0";
+				JSONObject json = new JSONObject();
+				do {
+					ScanResult<Tuple> hscanResult = cluster.zscan(indexKey, hcursor);
+					hcursor = hscanResult.getStringCursor();
+					String fileExt;
+					for (Tuple entry : hscanResult.getResult()) {
+						String uidKey = entry.getElement();
+						long zcard = cluster.zcard("u_f_" + uidKey);
+						json.put("uid", uidKey);
+						json.put("zcard", zcard);
+						if (zcard > 1000) {
+							fileExt = "1000+";
+						} else if (zcard > 500 && zcard <= 1000) {
+							fileExt = "500-1000";
+						} else if (zcard > 300 && zcard <= 500) {
+							fileExt = "300-500";
+						} else if (zcard > 200 && zcard <= 300) {
+							fileExt = "200-300";
+						} else if (zcard > 100 && zcard <= 200) {
+							fileExt = "100-200";
+						} else if (zcard >= 1 && zcard <= 100) {
+							fileExt = "1-100";
+						} else {
+							fileExt = "0";
+						}
+
+						BufferedWriter bw = null;
+						try {
+							bw = new BufferedWriter(new FileWriter(filePath + fileExt, true));
+							bw.write(json.toJSONString());
+							bw.write('\r');
+							bw.write('\n');
+						} catch (IOException e) {
+							e.printStackTrace();
+						} finally {
+							try {
+								if (null != bw) {
+									bw.close();
+								}
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
+						}
+
+						long count = readCount.incrementAndGet();
+						if (count % 10000 == 0) {
+							if (readLastCountTime > 0) {
+								long useTime = System.currentTimeMillis() - readLastCountTime;
+								float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+								System.out.println(" count:" + count + " speed:" + speedFormat.format(speed));
+							}
+							readLastCountTime = System.currentTimeMillis();
+							lastReadCount.set(count);
+						}
+					}
+				} while (!"0".equals(hcursor));
+
+				try {
+					BufferedReader br = new BufferedReader(new FileReader(filePath));
+					String data = null;
+					while ((data = br.readLine()) != null) {
+						dataQueue.add(json);
+						long count = readCount.incrementAndGet();
+						if (count % 50000 == 0) {
+							if (readLastCountTime > 0) {
+								long useTime = System.currentTimeMillis() - readLastCountTime;
+								float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+								System.out.println("read count:" + count + " speed:" + speedFormat.format(speed));
+							}
+							readLastCountTime = System.currentTimeMillis();
+							lastReadCount.set(count);
+							synchronized (dataQueue) {
+								Collections.shuffle(dataQueue);//导出是按节点导出的，这样可以提升性能
+							}
+							while (dataQueue.size() > 100000) {//防止内存写爆了
+								Thread.sleep(1000);
+							}
+						}
+					}
+					br.close();
+
+					synchronized (dataQueue) {
+						Collections.shuffle(dataQueue);
+					}
+					isCompleted = true;
+
+					while (!dataQueue.isEmpty()) {//等待数据写入完成
+						Thread.sleep(500);
+					}
+					long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
+					float speed = (float) (totalCount / (useTime / 1000.0));
+					System.out.println("write total:" + totalCount + " speed:" + speedFormat.format(speed)
+							+ " useTime:" + (useTime / 1000.0) + "s");
+					for (int i = 0; i <= writeThread.length - 1; i++) {
+						writeThread[i].interrupt();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		readThread.start();
+
+		for (int i = 0; i <= writeThread.length - 1; i++) {
+			writeThread[i] = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					while (!isCompleted || !dataQueue.isEmpty()) {
+						JSONObject json = null;
+						if (dataQueue.isEmpty()) {
+							try {
+								Thread.sleep(100);
+								continue;
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+						} else {
+							try {
+								synchronized (dataQueue) {
+									json = dataQueue.remove(0);
+								}
+							} catch (IndexOutOfBoundsException e) {
+								continue;
+							}
+						}
+						String key = json.getString("key");
+						String type = json.getString("type");
+						Object oject = json.get("value");
+						boolean isNeedImport = false;
+						for (String keyImport : importKeyPre) {
+							if ("*".equals(keyImport) || key.startsWith(keyImport)) {
+								isNeedImport = true;
+								break;
+							}
+						}
+
+						//list使用合并
+						if (isNeedImport) {
+							if ("hash".equals(type)) {
+								JSONArray value = (JSONArray) oject;
+								Iterator<Object> it = value.iterator();
+								Map<String, String> hash = new HashMap<String, String>();
+								while (it.hasNext()) {
+									JSONObject jsonData = (JSONObject) it.next();
+									String dataKey = jsonData.getString("key");
+									String dataValue = jsonData.getString("value");
+									hash.put(dataKey, dataValue);
+								}
+								cluster.hmset(key, hash);
+							} else if ("string".equals(type)) {
+								String dataValue = (String) oject;
+								cluster.set(key, dataValue);
+							} else if ("list".equals(type)) {
+								JSONArray value = (JSONArray) oject;
+								List<String> inDb = cluster.lrange(key, 0, -1);
+								Iterator<Object> it = value.iterator();
+								while (it.hasNext()) {
+									String dataValue = (String) it.next();
+									if (!inDb.contains(dataValue)) {//list使用合并
+										cluster.rpush(key, dataValue);
+									} else {
+										//	System.out.println("value:" + value);
+									}
+								}
+							} else if ("set".equals(type)) {
+								JSONArray value = (JSONArray) oject;
+								Iterator<Object> it = value.iterator();
+								while (it.hasNext()) {
+									String dataValue = (String) it.next();
+									cluster.sadd(key, dataValue);
+								}
+							} else if ("zset".equals(type)) {
+								JSONArray value = (JSONArray) oject;
+								Iterator<Object> it = value.iterator();
+								while (it.hasNext()) {
+									JSONObject jsonData = (JSONObject) it.next();
+									double score = jsonData.getLong("score");
+									String dataValue = jsonData.getString("value");
+									cluster.zadd(key, score, dataValue);
+								}
+							} else {
+								System.out.println("unknow keyType:" + type + "key:" + key);
+							}
+							long count = writeCount.incrementAndGet();
+
+							if (count % 10000 == 0) {
+								if (writeLastCountTime > 0) {
+									long useTime = System.currentTimeMillis() - writeLastCountTime;
+									float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
+									System.out.println("write count:" + count + "/" + readCount + " speed:"
+											+ speedFormat.format(speed));
+								}
+								writeLastCountTime = System.currentTimeMillis();
+								lastWriteCount.set(count);
+							}
+						}
+					}
+				}
+			}, "write thread [" + i + "]");
+			writeThread[i].setDaemon(true);
+			writeThread[i].start();
 		}
 	}
 
