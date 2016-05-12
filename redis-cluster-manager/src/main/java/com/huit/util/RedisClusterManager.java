@@ -353,11 +353,10 @@ public class RedisClusterManager {
 
 	/**
 	 * 按key导出数据
-	 * TODO 多线程导出
 	 */
-	public void exportKey(String keyPre, String filePath) {
+	public void exportKeyPre(String keyPre, final String filePath) {
 		final String[] exportKeyPre = keyPre.split(",");
-		createExportFile(filePath);
+		createExportFile(filePath + ".0");
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
 		while (nodes.hasNext()) {
@@ -388,6 +387,16 @@ public class RedisClusterManager {
 									isExport = true;
 									break;
 								}
+							}
+							long count = readCount.incrementAndGet();
+							if (count % 100000 == 0) {
+								if (readLastCountTime > 0) {
+									long useTime = System.currentTimeMillis() - readLastCountTime;
+									float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
+									System.out.println("scan count:" + count + " speed:" + speedFormat.format(speed));
+								}
+								readLastCountTime = System.currentTimeMillis();
+								lastReadCount.set(count);
 							}
 							if (!isExport) {
 								continue;
@@ -457,7 +466,7 @@ public class RedisClusterManager {
 							}
 
 							json.put("time", System.currentTimeMillis());
-							writeFile(json.toJSONString(), "export");
+							writeFile(json.toJSONString(), "export", filePath);
 						}
 					} while ((!"0".equals(cursor)));
 				}
@@ -502,20 +511,23 @@ public class RedisClusterManager {
 		}
 	}
 
-	public synchronized void writeFile(String data, String optType) {
+	public synchronized void writeFile(String data, String optType, String filePath) {
 		try {
 			bw.write(data);
 			bw.write('\r');
 			bw.write('\n');
-			long count = readCount.incrementAndGet();
+			long count = writeCount.incrementAndGet();
 			if (count % 10000 == 0) {
-				if (readLastCountTime > 0) {
-					long useTime = System.currentTimeMillis() - readLastCountTime;
-					float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+				if (writeLastCountTime > 0) {
+					long useTime = System.currentTimeMillis() - writeLastCountTime;
+					float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
 					System.out.println(optType + " count:" + count + " speed:" + speedFormat.format(speed));
 				}
-				readLastCountTime = System.currentTimeMillis();
-				lastReadCount.set(count);
+				writeLastCountTime = System.currentTimeMillis();
+				lastWriteCount.set(count);
+			}
+			if (count % 100000 == 0) {//分文件
+				createExportFile(filePath + "." + (count / 100000));
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -1379,7 +1391,7 @@ public class RedisClusterManager {
 	 * 按照key前缀清除缓存
 	 * @param pattern
 	 */
-	public void dels(String keyPre, String filePath) {
+	public void dels(String keyPre, final String filePath) {
 		final String[] exportKeyPre = keyPre.split(",");
 		createExportFile(filePath);
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
@@ -1409,7 +1421,7 @@ public class RedisClusterManager {
 							for (String keyExport : exportKeyPre) {
 								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
 									nodeCli.del(key);
-									writeFile(key, "del");
+									writeFile(key, "del", filePath);
 									break;
 								}
 							}
@@ -1625,7 +1637,7 @@ public class RedisClusterManager {
 				}
 			} else if ("export".equals(args[0])) {
 				if (args.length == 3) {
-					rcm.exportKey(args[1], args[2]);
+					rcm.exportKeyPre(args[1], args[2]);
 				} else {
 					System.out.println("export keyPattern D:/export.dat");
 				}
@@ -1910,7 +1922,8 @@ public class RedisClusterManager {
 	 */
 	public void rubbishH5Del() {
 		final String[] exportKeyPre = "s_u_f_,s_f_l_,s_f_p_".split(",");
-		createExportFile(SystemConf.confFileDir + "/deleted-key.txt");
+		final String filePath = SystemConf.confFileDir + "/deleted-key.txt";
+		createExportFile(filePath);
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
 		while (nodes.hasNext()) {
@@ -1934,7 +1947,7 @@ public class RedisClusterManager {
 							for (String keyExport : exportKeyPre) {
 								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
 									nodeCli.del(key);
-									writeFile(key, "del");//关注流删除
+									writeFile(key, "del", filePath);//关注流删除
 									delCount.incrementAndGet();
 									isAttetionKey = true;
 									break;
@@ -1982,14 +1995,14 @@ public class RedisClusterManager {
 											if (null != value && value.contains("share/lv.jsp")) {
 												nodeCli.del(key);
 												delCount.incrementAndGet();
-												writeFile(key, "del");
+												writeFile(key, "del", filePath);
 											}
 										} else if ("string".equals(keyType)) {
 											String value = nodeCli.get(key);
 											if (value.length() == 6) {
 												nodeCli.del(key);
 												delCount.incrementAndGet();
-												writeFile(key, "del");
+												writeFile(key, "del", filePath);
 											}
 										}
 									}
