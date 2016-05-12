@@ -913,21 +913,23 @@ public class RedisClusterManager {
 			} else {
 				System.out.println("unknow keyType:" + keyType + "key:" + key);
 			}
-			BufferedWriter bw = null;
-			try {
-				bw = new BufferedWriter(new FileWriter(filePath, true));
-				bw.write(json.toJSONString());
-				bw.write('\r');
-				bw.write('\n');
-			} catch (IOException e) {
-				e.printStackTrace();
-			} finally {
+			synchronized (this) {//删除多线程里会调用这个方法
+				BufferedWriter bw = null;
 				try {
-					if (null != bw) {
-						bw.close();
-					}
+					bw = new BufferedWriter(new FileWriter(filePath, true));
+					bw.write(json.toJSONString());
+					bw.write('\r');
+					bw.write('\n');
 				} catch (IOException e) {
 					e.printStackTrace();
+				} finally {
+					try {
+						if (null != bw) {
+							bw.close();
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 				}
 			}
 		}
@@ -1930,7 +1932,7 @@ public class RedisClusterManager {
 	 */
 	public void rubbishH5Del() {
 		final String[] exportKeyPre = "s_u_f_,s_f_l_,s_f_p_".split(",");
-		final String filePath = SystemConf.confFileDir + "/deleted-key.txt";
+		final String filePath = SystemConf.confFileDir + "/deleted-data.txt";
 		createExportFile(filePath);
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
@@ -1954,8 +1956,8 @@ public class RedisClusterManager {
 							boolean isAttetionKey = false;
 							for (String keyExport : exportKeyPre) {
 								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
-									nodeCli.del(key);
-									writeFile(key, "del", filePath);//关注流删除
+									exportKeys(key, filePath);
+									nodeCli.del(key);//关注流删除
 									delCount.incrementAndGet();
 									isAttetionKey = true;
 									break;
@@ -2001,16 +2003,16 @@ public class RedisClusterManager {
 										if ("hash".equals(keyType)) {
 											String value = nodeCli.hget(key, checkFiled);
 											if (null != value && value.contains("share/lv.jsp")) {
+												exportKeys(key, filePath);
 												nodeCli.del(key);
 												delCount.incrementAndGet();
-												writeFile(key, "del", filePath);
 											}
 										} else if ("string".equals(keyType)) {
 											String value = nodeCli.get(key);
 											if (value.length() == 6) {
+												exportKeys(key, filePath);
 												nodeCli.del(key);
 												delCount.incrementAndGet();
-												writeFile(key, "del", filePath);
 											}
 										}
 									}
@@ -2025,7 +2027,7 @@ public class RedisClusterManager {
 					} while ((!"0".equals(cursor)));
 				}
 
-			}, entry.getKey() + "export thread");
+			}, entry.getKey() + "del thread");
 			exportTheadList.add(exportThread);
 			exportThread.start();
 		}
@@ -2041,8 +2043,6 @@ public class RedisClusterManager {
 				}
 			} while (thread.isAlive());
 		}
-
-		writeRamInfo();
 
 		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
 		float speed = (float) (totalCount / (useTime / 1000.0));
