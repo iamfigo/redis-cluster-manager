@@ -2,6 +2,7 @@ package com.huit.util;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -504,6 +505,11 @@ public class RedisClusterManager {
 	BufferedWriter bw = null;
 
 	public synchronized void createExportFile(String filePath) {
+		String pathDir = filePath.substring(0, filePath.lastIndexOf("/"));
+		File file = new File(pathDir);
+		if (!file.isDirectory()) {
+			file.mkdirs();
+		}
 		try {
 			bw = new BufferedWriter(new FileWriter(filePath));
 		} catch (IOException e) {
