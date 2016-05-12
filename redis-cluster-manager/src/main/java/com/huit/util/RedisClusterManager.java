@@ -392,7 +392,7 @@ public class RedisClusterManager {
 							if (count % 1000000 == 0) {
 								if (readLastCountTime > 0) {
 									long useTime = System.currentTimeMillis() - readLastCountTime;
-									float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
+									float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
 									System.out.println("scan count:" + count + " speed:" + speedFormat.format(speed));
 								}
 								readLastCountTime = System.currentTimeMillis();
