@@ -488,10 +488,10 @@ public class RedisClusterManager {
 			} while (thread.isAlive());
 		}
 
-		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
 		float speed = (float) (totalCount / (useTime / 1000.0));
-		System.out.println("export total:" + totalCount + " speed:" + speedFormat.format(speed) + " useTime:"
-				+ (useTime / 1000.0) + "s");
+		System.out.println("scan count:" + readCount.get() + " export total:" + totalCount + " speed:"
+				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
 
 		try {
 			if (null != bw) {
