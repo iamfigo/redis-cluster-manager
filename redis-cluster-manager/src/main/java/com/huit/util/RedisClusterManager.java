@@ -517,6 +517,8 @@ public class RedisClusterManager {
 		}
 	}
 
+	private static final long FILE_PARTITION_LINE_COUNT = 1000000;//100W
+
 	public synchronized void writeFile(String data, String optType, String filePath) {
 		try {
 			bw.write(data);
@@ -532,8 +534,8 @@ public class RedisClusterManager {
 				writeLastCountTime = System.currentTimeMillis();
 				lastWriteCount.set(count);
 			}
-			if (count % 1000000 == 0) {//分文件 100W
-				createExportFile(filePath + "." + (count / 100000));
+			if (count % FILE_PARTITION_LINE_COUNT == 0) {//分文件 100W
+				createExportFile(filePath + "." + (count / FILE_PARTITION_LINE_COUNT));
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
