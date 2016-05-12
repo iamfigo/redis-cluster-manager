@@ -389,7 +389,7 @@ public class RedisClusterManager {
 								}
 							}
 							long count = readCount.incrementAndGet();
-							if (count % 100000 == 0) {
+							if (count % 1000000 == 0) {
 								if (readLastCountTime > 0) {
 									long useTime = System.currentTimeMillis() - readLastCountTime;
 									float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
@@ -517,7 +517,7 @@ public class RedisClusterManager {
 			bw.write('\r');
 			bw.write('\n');
 			long count = writeCount.incrementAndGet();
-			if (count % 10000 == 0) {
+			if (count % 100000 == 0) {
 				if (writeLastCountTime > 0) {
 					long useTime = System.currentTimeMillis() - writeLastCountTime;
 					float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
@@ -526,7 +526,7 @@ public class RedisClusterManager {
 				writeLastCountTime = System.currentTimeMillis();
 				lastWriteCount.set(count);
 			}
-			if (count % 100000 == 0) {//分文件
+			if (count % 1000000 == 0) {//分文件 100W
 				createExportFile(filePath + "." + (count / 100000));
 			}
 		} catch (IOException e) {
