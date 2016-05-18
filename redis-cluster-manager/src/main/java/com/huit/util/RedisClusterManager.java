@@ -3,6 +3,7 @@ package com.huit.util;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -510,8 +511,26 @@ public class RedisClusterManager {
 		if (!file.isDirectory()) {
 			file.mkdirs();
 		}
+
+		File f = new File(filePath);
+		FileOutputStream fos = null;
 		try {
-			bw = new BufferedWriter(new FileWriter(filePath));
+			fos = new FileOutputStream(f);
+			// write UTF8 BOM mark if file is empty 
+			if (f.length() < 1) {
+				final byte[] bom = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+				fos.write(bom);
+			}
+		} catch (IOException ex) {
+		} finally {
+			try {
+				fos.close();
+			} catch (Exception ex) {
+			}
+		}
+
+		try {
+			bw = new BufferedWriter(new FileWriter(filePath, true));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -785,6 +804,109 @@ public class RedisClusterManager {
 	/**
 	 * 按key导出数据
 	 */
+	public void fansCount(final String filePath) {
+		final String[] exportKeyPre = "u_f_".split(",");
+		createExportFile(filePath);
+		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
+		List<Thread> exportTheadList = new ArrayList<Thread>();
+		while (nodes.hasNext()) {
+			Entry<String, JedisPool> entry = nodes.next();
+			try {
+				entry.getValue().getResource();
+			} catch (redis.clients.jedis.exceptions.JedisConnectionException e) {//有失败的节点连不上
+				System.out.println(entry.getKey() + " conn error:" + e.getMessage());
+				continue;
+			}
+			final Jedis nodeCli = entry.getValue().getResource();
+			String info = entry.getValue().getResource().info();
+			if (info.contains("role:slave")) {//只导出master
+				continue;
+			}
+			Thread exportThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					String cursor = "0";
+					do {
+						ScanResult<String> keys = nodeCli.scan(cursor);
+						cursor = keys.getStringCursor();
+						List<String> result = keys.getResult();
+						for (String key : result) {
+							boolean isExport = false;
+							for (String keyExport : exportKeyPre) {
+								if ("*".equals(keyExport) || key.startsWith(keyExport)) {
+									isExport = true;
+									break;
+								}
+							}
+							long count = readCount.incrementAndGet();
+							if (count % 1000000 == 0) {
+								if (readLastCountTime > 0) {
+									long useTime = System.currentTimeMillis() - readLastCountTime;
+									float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+									System.out.println("scan count:" + count + " speed:" + speedFormat.format(speed));
+								}
+								readLastCountTime = System.currentTimeMillis();
+								lastReadCount.set(count);
+							}
+							if (!isExport) {
+								continue;
+							}
+
+							String keyType = nodeCli.type(key);
+							String uidKey = key.substring(key.lastIndexOf('_') + 1);
+							StringBuffer sb = new StringBuffer();
+							if ("zset".equals(keyType)) {
+								long zcard = cluster.zcard("u_f_" + uidKey);
+								if (0 == zcard) {//大于0的才统计
+									continue;
+								}
+								sb.append("\"").append(uidKey).append("\"").append(',').append(zcard).append(',');
+								List<String> nickname = cluster.hmget("rpcUserInfo" + uidKey, "nickname");
+								if (null != nickname && nickname.size() > 0 && null != nickname.get(0)) {
+									sb.append("\"").append(nickname.get(0).replace(",", "")).append("\"");
+								} else {
+									sb.append("\"\"");
+								}
+							}
+
+							writeFile(sb.toString(), "export", filePath);
+						}
+					} while ((!"0".equals(cursor)));
+				}
+			}, entry.getKey() + "export thread");
+			exportTheadList.add(exportThread);
+			exportThread.start();
+		}
+
+		for (Thread thread : exportTheadList) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
+		float speed = (float) (totalCount / (useTime / 1000.0));
+		System.out.println("scan count:" + readCount.get() + " export total:" + totalCount + " speed:"
+				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+
+		try {
+			if (null != bw) {
+				bw.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * 按key导出数据
+	 */
 	public void keySizeCount(String key, String filePath) {
 		filePath += key;
 		String hcursor = "0";
@@ -798,8 +920,16 @@ public class RedisClusterManager {
 				long zcard = cluster.zcard("u_f_" + uidKey);
 				json.put("uid", uidKey);
 				json.put("zcard", zcard);
-				if (zcard > 1000) {
-					fileExt = "1000+";
+				if (zcard > 100000) {
+					List<String> nickname = cluster.hmget("rpcUserInfo" + uidKey, "nickname");
+					if (null != nickname && nickname.size() > 0) {
+						json.put("nickname", nickname.get(0));
+					}
+					fileExt = "10W+";
+				} else if (zcard > 10000 && zcard <= 100000) {
+					fileExt = "1W-10W";
+				} else if (zcard > 1000 && zcard <= 10000) {
+					fileExt = "1k-1W";
 				} else if (zcard > 500 && zcard <= 1000) {
 					fileExt = "500-1000";
 				} else if (zcard > 300 && zcard <= 500) {
@@ -1566,6 +1696,12 @@ public class RedisClusterManager {
 					rcm.bakupNode(args[1]);
 				} else {
 					System.out.println("参数错误！");
+				}
+			} else if ("fansCount".equals(args[0])) {
+				if (args.length == 2) {
+					rcm.fansCount(args[1]);
+				} else {
+					System.out.println("fansCount D:/export.dat");
 				}
 			} else if ("raminfo".equals(args[0])) {
 				if (args.length == 2) {
