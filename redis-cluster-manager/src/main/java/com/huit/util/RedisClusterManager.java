@@ -864,7 +864,11 @@ public class RedisClusterManager {
 									u_a_id = data.getElement();
 									double score = data.getScore();
 									checkCount.incrementAndGet();
+									if ("99521678".endsWith(u_a_id) || "88011458".equals(u_a_id)) {
+										continue;//种草君，假leo不管
+									}
 									if (null == cluster.zscore("u_f_" + u_a_id, uid)) {//关注了粉丝列表没有
+
 										cluster.zadd("u_f_" + u_a_id, score, uid);//向粉丝列表添加来修复数据
 										errorCount.incrementAndGet();
 										String errorInfo = uid + "->" + u_a_id;
