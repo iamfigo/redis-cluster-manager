@@ -37,7 +37,6 @@ import redis.clients.jedis.Tuple;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.util.JedisClusterCRC16;
 
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.MongoClient;
@@ -79,6 +78,8 @@ public class RedisClusterManager {
 	private static AtomicLong lastWriteCount = new AtomicLong();
 	private static AtomicLong readCount = new AtomicLong();
 	private static AtomicLong delCount = new AtomicLong();
+	private static AtomicLong checkCount = new AtomicLong();
+	private static AtomicLong errorCount = new AtomicLong();
 	private static AtomicLong lastReadCount = new AtomicLong();
 	private static long writeBeginTime = System.currentTimeMillis(), readLastCountTime, writeLastCountTime;
 	final DecimalFormat speedFormat = new DecimalFormat("#,##0.00");//格式化设置  
@@ -102,7 +103,7 @@ public class RedisClusterManager {
 					BufferedReader br = new BufferedReader(new FileReader(filePath));
 					String data = null;
 					while ((data = br.readLine()) != null) {
-						JSONObject json = JSON.parseObject(data);
+						JSONObject json = JSONObject.parseObject(data);
 						dataQueue.add(json);
 						long count = readCount.incrementAndGet();
 						if (count % 50000 == 0) {
@@ -255,7 +256,7 @@ public class RedisClusterManager {
 			String data = null;
 			String[] importKeyPre = KeyPre.split(",");
 			while ((data = br.readLine()) != null) {
-				JSONObject json = JSON.parseObject(data);
+				JSONObject json = JSONObject.parseObject(data);
 				String key = json.getString("key");
 				String type = json.getString("type");
 				Object oject = json.get("value");
@@ -798,6 +799,215 @@ public class RedisClusterManager {
 			}, "write thread [" + i + "]");
 			writeThread[i].setDaemon(true);
 			writeThread[i].start();
+		}
+	}
+
+	/**
+	 * 按key导出数据
+	 */
+	public void uaCheck(final String filePath) {
+		final String u_a_ = "u_a_";
+		createExportFile(filePath);
+		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
+		List<Thread> exportTheadList = new ArrayList<Thread>();
+		while (nodes.hasNext()) {
+			Entry<String, JedisPool> entry = nodes.next();
+			try {
+				entry.getValue().getResource();
+			} catch (redis.clients.jedis.exceptions.JedisConnectionException e) {//有失败的节点连不上
+				System.out.println(entry.getKey() + " conn error:" + e.getMessage());
+				continue;
+			}
+			final Jedis nodeCli = entry.getValue().getResource();
+			String info = entry.getValue().getResource().info();
+			if (info.contains("role:slave")) {//只导出master
+				continue;
+			}
+			Thread exportThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					String cursor = "0";
+					do {
+						ScanResult<String> keys = nodeCli.scan(cursor);
+						cursor = keys.getStringCursor();
+						List<String> result = keys.getResult();
+						for (String key : result) {
+							long count = readCount.incrementAndGet();
+							if (count % 1000000 == 0) {
+								if (readLastCountTime > 0) {
+									long useTime = System.currentTimeMillis() - readLastCountTime;
+									float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+									System.out.println("scanCount:" + count + " speed:" + speedFormat.format(speed)
+											+ " checkCount:" + checkCount.get() + " errorCount:" + errorCount.get());
+								}
+								readLastCountTime = System.currentTimeMillis();
+								lastReadCount.set(count);
+							}
+							String uid;
+							if (key.startsWith(u_a_)) {
+								uid = key.substring(4);
+								try {
+									Integer.valueOf(uid);
+								} catch (Exception e) {
+									continue;
+								}
+							} else {
+								continue;
+							}
+
+							String zcursor = "0";
+							String u_f_id;
+							do {
+								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
+								zcursor = sscanResult.getStringCursor();
+								for (Tuple data : sscanResult.getResult()) {
+									u_f_id = data.getElement();
+									double score = data.getScore();
+									checkCount.incrementAndGet();
+									if (null == cluster.zscore("u_f_" + u_f_id, uid)) {//关注了粉丝列表没有
+										cluster.zadd("u_f_" + u_f_id, score, uid);//修复数据
+										errorCount.incrementAndGet();
+										String errorInfo = uid + "->" + u_f_id;
+										System.out.println(errorInfo);
+										writeFile(errorInfo, "export", filePath);
+									}
+								}
+							} while (!"0".equals(zcursor));
+						}
+					} while ((!"0".equals(cursor)));
+				}
+			}, entry.getKey() + "export thread");
+			exportTheadList.add(exportThread);
+			exportThread.start();
+		}
+
+		for (Thread thread : exportTheadList) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
+		float speed = (float) (totalCount / (useTime / 1000.0));
+		System.out.println("scan count:" + readCount.get() + " export total:" + totalCount + " speed:"
+				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+
+		try {
+			if (null != bw) {
+				bw.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * 按key导出数据
+	 */
+	public void ufCheck(final String filePath) {
+		final String u_a_ = "u_f_";
+		createExportFile(filePath);
+		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
+		List<Thread> exportTheadList = new ArrayList<Thread>();
+		while (nodes.hasNext()) {
+			Entry<String, JedisPool> entry = nodes.next();
+			try {
+				entry.getValue().getResource();
+			} catch (redis.clients.jedis.exceptions.JedisConnectionException e) {//有失败的节点连不上
+				System.out.println(entry.getKey() + " conn error:" + e.getMessage());
+				continue;
+			}
+			final Jedis nodeCli = entry.getValue().getResource();
+			String info = entry.getValue().getResource().info();
+			if (info.contains("role:slave")) {//只导出master
+				continue;
+			}
+			Thread exportThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					String cursor = "0";
+					do {
+						ScanResult<String> keys = nodeCli.scan(cursor);
+						cursor = keys.getStringCursor();
+						List<String> result = keys.getResult();
+						for (String key : result) {
+							long count = readCount.incrementAndGet();
+							if (count % 1000000 == 0) {
+								if (readLastCountTime > 0) {
+									long useTime = System.currentTimeMillis() - readLastCountTime;
+									float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+									System.out.println("scanCount:" + count + " speed:" + speedFormat.format(speed)
+											+ " checkCount:" + checkCount.get() + " errorCount:" + errorCount.get());
+								}
+								readLastCountTime = System.currentTimeMillis();
+								lastReadCount.set(count);
+							}
+							String uid;
+							if (key.startsWith(u_a_)) {
+								uid = key.substring(4);
+								try {
+									Integer.valueOf(uid);
+								} catch (Exception e) {
+									continue;
+								}
+							} else {
+								continue;
+							}
+
+							String zcursor = "0";
+							String u_f_id;
+							do {
+								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
+								zcursor = sscanResult.getStringCursor();
+								for (Tuple data : sscanResult.getResult()) {
+									u_f_id = data.getElement();
+									checkCount.incrementAndGet();
+									if (null == cluster.zscore("u_a_" + u_f_id, uid)) {//粉丝表里有，关注列表里没有，需要删除
+										cluster.zrem("u_a_" + u_f_id, uid);//修复数据
+										errorCount.incrementAndGet();
+										String errorInfo = uid + "->" + u_f_id;
+										System.out.println(errorInfo);
+										writeFile(errorInfo, "export", filePath);
+									}
+								}
+							} while (!"0".equals(zcursor));
+						}
+					} while ((!"0".equals(cursor)));
+				}
+			}, entry.getKey() + "export thread");
+			exportTheadList.add(exportThread);
+			exportThread.start();
+		}
+
+		for (Thread thread : exportTheadList) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
+		float speed = (float) (totalCount / (useTime / 1000.0));
+		System.out.println("scan count:" + readCount.get() + " export total:" + totalCount + " speed:"
+				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+
+		try {
+			if (null != bw) {
+				bw.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -1702,6 +1912,18 @@ public class RedisClusterManager {
 					rcm.fansCount(args[1]);
 				} else {
 					System.out.println("fansCount D:/export.dat");
+				}
+			} else if ("uaCheck".equals(args[0])) {
+				if (args.length == 2) {
+					rcm.uaCheck(args[1]);
+				} else {
+					System.out.println("fansCheck D:/export.dat");
+				}
+			} else if ("ufCheck".equals(args[0])) {
+				if (args.length == 2) {
+					rcm.ufCheck(args[1]);
+				} else {
+					System.out.println("fansCheck D:/export.dat");
 				}
 			} else if ("raminfo".equals(args[0])) {
 				if (args.length == 2) {
