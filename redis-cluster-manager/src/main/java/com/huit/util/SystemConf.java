@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-/** 
+/**
  * @department 成都-产品运营-商务智能-java  
  * @description 系统配置文件，支持配置文件动态修改(需要实现SystemConfModifyListener接口，并手动注册监听)
  * @author huit

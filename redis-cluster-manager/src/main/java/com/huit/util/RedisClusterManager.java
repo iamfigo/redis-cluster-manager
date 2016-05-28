@@ -896,7 +896,8 @@ public class RedisClusterManager {
 		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
 		float speed = (float) (totalCount / (useTime / 1000.0));
 		System.out.println("scan count:" + readCount.get() + " export total:" + totalCount + " speed:"
-				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+				+ speedFormat.format(speed) + " checkCount:" + checkCount.get() + " errorCount:" + errorCount.get()
+				+ " useTime:" + (useTime / 1000.0) + "s");
 
 		try {
 			if (null != bw) {
@@ -911,7 +912,7 @@ public class RedisClusterManager {
 	 * 按key导出数据
 	 */
 	public void ufCheck(final String filePath) {
-		final String u_a_ = "u_f_";
+		final String u_f_ = "u_f_";
 		createExportFile(filePath);
 		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
@@ -949,8 +950,11 @@ public class RedisClusterManager {
 								lastReadCount.set(count);
 							}
 							String uid;
-							if (key.startsWith(u_a_)) {
+							if (key.startsWith(u_f_)) {
 								uid = key.substring(4);
+								if ("99521678".equals(uid)) {//种草君的不管
+									continue;
+								}
 								try {
 									Integer.valueOf(uid);
 								} catch (Exception e) {
@@ -1000,7 +1004,8 @@ public class RedisClusterManager {
 		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
 		float speed = (float) (totalCount / (useTime / 1000.0));
 		System.out.println("scan count:" + readCount.get() + " export total:" + totalCount + " speed:"
-				+ speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+				+ speedFormat.format(speed) + " checkCount:" + checkCount.get() + " errorCount:" + errorCount.get()
+				+ " useTime:" + (useTime / 1000.0) + "s");
 
 		try {
 			if (null != bw) {
