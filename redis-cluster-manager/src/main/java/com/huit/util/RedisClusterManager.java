@@ -856,18 +856,18 @@ public class RedisClusterManager {
 							}
 
 							String zcursor = "0";
-							String u_f_id;
+							String u_a_id;
 							do {
 								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
 								zcursor = sscanResult.getStringCursor();
 								for (Tuple data : sscanResult.getResult()) {
-									u_f_id = data.getElement();
+									u_a_id = data.getElement();
 									double score = data.getScore();
 									checkCount.incrementAndGet();
-									if (null == cluster.zscore("u_f_" + u_f_id, uid)) {//关注了粉丝列表没有
-										cluster.zadd("u_f_" + u_f_id, score, uid);//修复数据
+									if (null == cluster.zscore("u_f_" + u_a_id, uid)) {//关注了粉丝列表没有
+										cluster.zadd("u_f_" + u_a_id, score, uid);//向粉丝列表添加来修复数据
 										errorCount.incrementAndGet();
-										String errorInfo = uid + "->" + u_f_id;
+										String errorInfo = uid + "->" + u_a_id;
 										System.out.println(errorInfo);
 										writeFile(errorInfo, "export", filePath);
 									}
@@ -973,7 +973,7 @@ public class RedisClusterManager {
 									u_f_id = data.getElement();
 									checkCount.incrementAndGet();
 									if (null == cluster.zscore("u_a_" + u_f_id, uid)) {//粉丝表里有，关注列表里没有，需要删除
-										cluster.zrem("u_a_" + u_f_id, uid);//修复数据
+										cluster.zrem(key, u_f_id);//删除粉丝列表的数据来修复
 										errorCount.incrementAndGet();
 										String errorInfo = uid + "->" + u_f_id;
 										System.out.println(errorInfo);
