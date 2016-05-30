@@ -82,7 +82,7 @@ public class RedisClusterManager {
 	private static AtomicLong errorCount = new AtomicLong();
 	private static AtomicLong lastReadCount = new AtomicLong();
 	private static long writeBeginTime = System.currentTimeMillis(), readLastCountTime, writeLastCountTime;
-	final DecimalFormat speedFormat = new DecimalFormat("#,##0.00");//格式化设置  
+	private static final DecimalFormat speedFormat = new DecimalFormat("#,##0.00");//格式化设置  
 
 	private static boolean isCompleted = false;
 
@@ -504,9 +504,9 @@ public class RedisClusterManager {
 		}
 	}
 
-	BufferedWriter bw = null;
+	private static BufferedWriter bw = null;
 
-	public synchronized void createExportFile(String filePath) {
+	public static synchronized void createExportFile(String filePath) {
 		String pathDir = filePath.substring(0, filePath.lastIndexOf("/"));
 		File file = new File(pathDir);
 		if (!file.isDirectory()) {
@@ -539,8 +539,11 @@ public class RedisClusterManager {
 
 	private static final long FILE_PARTITION_LINE_COUNT = 1000000;//100W
 
-	public synchronized void writeFile(String data, String optType, String filePath) {
+	public static synchronized void writeFile(String data, String optType, String filePath) {
 		try {
+			if (null == bw) {
+				createExportFile(filePath + ".0");
+			}
 			bw.write(data);
 			bw.write('\r');
 			bw.write('\n');
@@ -1017,6 +1020,88 @@ public class RedisClusterManager {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public void tagCheck(String uids, final String filePath) {
+		/*String zcursor = "0", KEY_BIGV_SET = "bigVSet:", bigVuid = null;
+		do {
+			ScanResult<Tuple> sscanResult = cluster.zscan(KEY_BIGV_SET, zcursor);
+			zcursor = sscanResult.getStringCursor();
+			for (Tuple data : sscanResult.getResult()) {
+				bigVuid = data.getElement();
+			}
+			final String checkUid = bigVuid;
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					bigVAdd(checkUid);
+				}
+			}, "bigVCheckTag-" + checkUid).start();
+		} while (!"0".equals(zcursor));*/
+
+		for (String uid : uids.split(",")) {
+			final String checkUid = uid;
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					bigVAdd(checkUid, filePath);
+				}
+			}, "bigVCheckTag-" + checkUid).start();
+		}
+	}
+
+	private static void bigVAdd(String bigVuid, final String filePath) {
+		String zcursor = "0", fansUid;
+		int fansOpenSwitchCount = 0, fansCount = 0, PUSH_BAT_SIZE = 10000;
+		StringBuffer sb = new StringBuffer();
+		StringBuffer notOpenPush = new StringBuffer();
+		String KEY_USER_FANS_ZSET = "u_f_";
+		do {
+			ScanResult<Tuple> sscanResult = cluster.zscan(KEY_USER_FANS_ZSET + bigVuid, zcursor);
+			zcursor = sscanResult.getStringCursor();
+			for (Tuple data : sscanResult.getResult()) {
+				fansCount++;
+				fansUid = data.getElement().trim();
+				if (isLivePushOpen(fansUid)) {
+					try {
+						int fansUidInt = Integer.valueOf(fansUid);
+						sb.append(fansUidInt).append(",");
+						fansOpenSwitchCount++;
+						if (fansOpenSwitchCount % PUSH_BAT_SIZE == 0) {
+							if (sb.length() > 0) {
+								sb.delete(sb.lastIndexOf(","), sb.length());
+							}
+							writeFile(bigVuid + "->" + sb.toString(), "check", filePath);
+							sb.setLength(0);
+							System.out.println("tagCheckCount->bigVuid:" + bigVuid + " fansCount:" + fansCount
+									+ " fansOpenSwitchCount:" + fansOpenSwitchCount);
+						}
+					} catch (Exception e) {
+						e.printStackTrace();
+						System.out.println("tagCheckfansUidError->bigVuid:" + bigVuid + " fansUid[" + fansUid + "]");
+					}
+				} else {
+					notOpenPush.append(fansUid).append(',');
+				}
+			}
+		} while (!"0".equals(zcursor));
+		if (sb.length() > 0) {
+			sb.delete(sb.lastIndexOf(","), sb.length());
+			writeFile(bigVuid + "->" + sb.toString(), "check", filePath);
+		}
+		System.out.println("bigVCheckCount->bigVuid:" + bigVuid + " fansCount:" + fansCount + " fansOpenSwitchCount:"
+				+ fansOpenSwitchCount);
+		if (notOpenPush.length() > 0) {
+			notOpenPush.delete(notOpenPush.lastIndexOf(","), notOpenPush.length());
+			writeFile("notOpenPush:" + bigVuid + "->" + notOpenPush.toString(), "check", filePath);
+		}
+	}
+
+	private static boolean isLivePushOpen(String uid) {
+		Map<String, String> pmap = cluster.hgetAll("pushswitch:" + uid); //push开关
+		int live_switch = pmap.get("live_switch") == null ? -1 : Integer.parseInt(pmap.get("live_switch"));
+		boolean isLiveOpen = live_switch == -1 || live_switch == 0;
+		return isLiveOpen;
 	}
 
 	/**
@@ -1932,6 +2017,12 @@ public class RedisClusterManager {
 					rcm.ufCheck(args[1]);
 				} else {
 					System.out.println("fansCheck D:/export.dat");
+				}
+			} else if ("tagCheck".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.tagCheck(args[1], args[2]);
+				} else {
+					System.out.println("tagCheck uids D:/tagCheck.dat");
 				}
 			} else if ("raminfo".equals(args[0])) {
 				if (args.length == 2) {
