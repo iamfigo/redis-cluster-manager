@@ -1050,6 +1050,23 @@ public class RedisClusterManager {
 		}
 	}
 
+	/**
+	 * hook线程
+	 */
+	static class CleanWorkThread extends Thread {
+		@Override
+		public void run() {
+			try {
+				if (null != bw) {
+					bw.close();
+					System.out.println("bw closed");
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
 	private static void bigVAdd(String bigVuid, final String filePath) {
 		String zcursor = "0", fansUid;
 		int fansOpenSwitchCount = 0, fansCount = 0, PUSH_BAT_SIZE = 10000;
@@ -1089,11 +1106,14 @@ public class RedisClusterManager {
 			sb.delete(sb.lastIndexOf(","), sb.length());
 			writeFile(bigVuid + "->" + sb.toString(), "check", filePath);
 		}
-		System.out.println("bigVCheckCount->bigVuid:" + bigVuid + " fansCount:" + fansCount + " fansOpenSwitchCount:"
-				+ fansOpenSwitchCount);
+		String tagCheckInfo = "tagCheckInfo->bigVuid:" + bigVuid + " fansCount:" + fansCount + " fansOpenSwitchCount:"
+				+ fansOpenSwitchCount;
+		System.out.println(tagCheckInfo);
 		if (notOpenPush.length() > 0) {
 			notOpenPush.delete(notOpenPush.lastIndexOf(","), notOpenPush.length());
-			writeFile("notOpenPush:" + bigVuid + "->" + notOpenPush.toString(), "check", filePath);
+			writeFile("notOpenPush->bigVuid:" + "->" + bigVuid + " notOpenUid:" + notOpenPush.toString(), "check",
+					filePath);
+			writeFile(tagCheckInfo, "check", filePath);
 		}
 	}
 
@@ -1975,6 +1995,7 @@ public class RedisClusterManager {
 		//"reshard"  "192.168.254.129:5000"  "0-1024;1025-2048;4096-4096;4098-4301"
 		//		args = new String[] { "set", "testkey", "testvalue" };
 		//				args = new String[] { "h" };
+		Runtime.getRuntime().addShutdownHook(new CleanWorkThread());
 		RedisClusterManager rcm = new RedisClusterManager();
 		long beginTime = System.currentTimeMillis();
 		if (args.length > 0) {
