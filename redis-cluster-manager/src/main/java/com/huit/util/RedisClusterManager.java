@@ -1111,8 +1111,7 @@ public class RedisClusterManager {
 		System.out.println(tagCheckInfo);
 		if (notOpenPush.length() > 0) {
 			notOpenPush.delete(notOpenPush.lastIndexOf(","), notOpenPush.length());
-			writeFile("notOpenPush->bigVuid:" + "->" + bigVuid + " notOpenUid:" + notOpenPush.toString(), "check",
-					filePath);
+			writeFile("notOpenPush->bigVuid:" + bigVuid + " notOpenUid:" + notOpenPush.toString(), "check", filePath);
 			writeFile(tagCheckInfo, "check", filePath);
 		}
 	}
