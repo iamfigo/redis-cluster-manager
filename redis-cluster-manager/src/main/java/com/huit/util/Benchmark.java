@@ -9,7 +9,7 @@ import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.JedisPoolConfig;
 
 /**
- * java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.Benchmark key "驱动有bug，重新建立连接后可以连上" 0 100000 10
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.jumei.util.Benchmark key "驱动有bug，重新建立连接后可以连上" 0 100000 10
  * @author huit
  *
  */
