@@ -32,9 +32,12 @@ public class BigZsetTest {
 
 	public static void main(String[] args) {
 		Map<String, Double> map = new HashMap<String, Double>();
+		Statistics.start();
 		for (long i = 1; i < UID_COUNT; i++) {
 			map.put(i + "", (double) System.currentTimeMillis());
-			cluster.zadd("u_f_6776875", map);
+			cluster.zadd("bigSetTest", map);
+			Statistics.addCount();
 		}
+		Statistics.stop();
 	}
 }
