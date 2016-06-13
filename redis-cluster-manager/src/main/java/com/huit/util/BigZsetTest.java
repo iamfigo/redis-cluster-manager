@@ -1,7 +1,9 @@
 package com.huit.util;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,6 +13,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 /**
  * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.BigZsetTest count=100000 offset=0 isDel=false
+ * PC机上验证结果：0-100W totalSpeed:20,771.45, 100-200W totalSpeed:20,293.03
  * @author huit
  *
  */
@@ -20,6 +23,7 @@ public class BigZsetTest {
 	private static JedisCluster cluster;
 	static final int DEFAULT_TIMEOUT = 2000;
 	static final int MAX_REDIRECTIONS = 25;//应该大于等于主节点数
+	static final int THREAD_NUM = 200;//线程数 0-100W totalSpeed:20,771.45, 100-200W totalSpeed:20,293.03
 	static {
 		Set<HostAndPort> nodes = new HashSet<HostAndPort>();
 		nodes.add(new HostAndPort(REDIS_HOST, REDIS_PORT));
@@ -55,17 +59,40 @@ public class BigZsetTest {
 			}
 		}
 
-		Map<String, Double> map = new HashMap<String, Double>();
 		Statistics.start();
-		for (long i = offset; i < offset + count; i++) {
-			map.clear();
-			map.put(i + "", (double) System.currentTimeMillis());
-			cluster.zadd("bigZSetTest", map);
-			//cluster.sadd("bigSetTest", i + "");
-			Statistics.addCount();
+		List<Thread> exportTheadList = new ArrayList<Thread>();
+		for (int i = 0; i < THREAD_NUM; i++) {
+			Thread thread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					long tId = Integer.valueOf(Thread.currentThread().getName());
+					Map<String, Double> map = new HashMap<String, Double>();
+					for (long i = offset + tId; i < offset + count; i += THREAD_NUM) {
+						map.clear();
+						map.put(i + "", (double) System.currentTimeMillis());
+						cluster.zadd("bigZSetTest", map);
+						//cluster.sadd("bigSetTest", i + "");
+						Statistics.addCount();
+					}
+				}
+			}, "" + i);
+			exportTheadList.add(thread);
+			thread.start();
 		}
+		for (Thread thread : exportTheadList) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
 		if (isDel) {
-			cluster.del("bigSetTest");
+			cluster.del("bigZSetTest");
 		}
 		Statistics.stop();
 	}
