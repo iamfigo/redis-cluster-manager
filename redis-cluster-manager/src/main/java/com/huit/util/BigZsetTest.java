@@ -58,6 +58,7 @@ public class BigZsetTest {
 		Map<String, Double> map = new HashMap<String, Double>();
 		Statistics.start();
 		for (long i = offset; i < offset + count; i++) {
+			map.clear();
 			map.put(i + "", (double) System.currentTimeMillis());
 			cluster.zadd("bigZSetTest", map);
 			//cluster.sadd("bigSetTest", i + "");
