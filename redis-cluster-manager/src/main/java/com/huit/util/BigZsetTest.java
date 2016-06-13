@@ -40,7 +40,8 @@ public class BigZsetTest {
 
 	public static void main(String[] args) {
 		if (args.length == 0) {
-			System.out.println("java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.BigZsetTest count=100000 offset=0 isDel=false");
+			System.out
+					.println("java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.BigZsetTest count=100000 offset=0 isDel=false");
 			System.exit(0);
 		}
 
@@ -56,9 +57,10 @@ public class BigZsetTest {
 
 		Map<String, Double> map = new HashMap<String, Double>();
 		Statistics.start();
-		for (long i = offset; i < count; i++) {
+		for (long i = offset; i < offset + count; i++) {
 			map.put(i + "", (double) System.currentTimeMillis());
-			cluster.zadd("bigSetTest", map);
+			cluster.zadd("bigZSetTest", map);
+			//cluster.sadd("bigSetTest", i + "");
 			Statistics.addCount();
 		}
 		if (isDel) {
