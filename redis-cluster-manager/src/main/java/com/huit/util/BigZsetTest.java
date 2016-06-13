@@ -13,7 +13,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 /**
  * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.BigZsetTest count=100000 offset=0 isDel=false
- * PC机上验证结果：0-100W totalSpeed:20,771.45, 100-200W totalSpeed:20,293.03
+ * PC机上zset验证结果：0-100W totalSpeed:20,771.45, 100-200W totalSpeed:20,293.03
  * @author huit
  *
  */
