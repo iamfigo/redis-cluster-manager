@@ -32,6 +32,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.ScanParams;
 import redis.clients.jedis.ScanResult;
 import redis.clients.jedis.Tuple;
 import redis.clients.jedis.exceptions.JedisConnectionException;
@@ -55,7 +56,8 @@ public class RedisClusterManager {
 	private static JedisCluster cluster;
 	static final int DEFAULT_TIMEOUT = 2000;
 	static final int MAX_REDIRECTIONS = 25;//应该大于等于主节点数
-	static {
+
+	private static void connectCluser() {
 		Set<HostAndPort> nodes = new HashSet<HostAndPort>();
 		nodes.add(new HostAndPort(REDIS_HOST, REDIS_PORT));
 		JedisPoolConfig poolConfig = new JedisPoolConfig();
@@ -1997,6 +1999,9 @@ public class RedisClusterManager {
 		Runtime.getRuntime().addShutdownHook(new CleanWorkThread());
 		RedisClusterManager rcm = new RedisClusterManager();
 		long beginTime = System.currentTimeMillis();
+		if (!"raminfo".equals(args[0])) {
+			connectCluser();
+		}
 		if (args.length > 0) {
 			if ("add-slave".equals(args[0])) {
 				if (args.length == 2) {
@@ -2048,9 +2053,9 @@ public class RedisClusterManager {
 				if (args.length == 2) {
 					rcm.raminfo(args[1]);
 				} else {
+					connectCluser();
 					rcm.raminfo(null);
 				}
-			} else if ("raminfo".equals(args[0])) {
 			} else if ("rubbish-del".equals(args[0])) {
 				rcm.rubbishH5Del();
 			} else if ("create".equals(args[0])) {
@@ -2246,7 +2251,7 @@ public class RedisClusterManager {
 		BufferedWriter raminfoUnknow = null;
 		try {
 			Iterator<Entry<String, AtomicLong>> it = ramKeyCount.entrySet().iterator();
-			System.out.println(" key type size:" + ramKeyCount.size());
+			System.out.println("key type size:" + ramKeyCount.size());
 			bw = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfo.csv"));
 			bw = new BufferedWriter(new FileWriter(SystemConf.confFileDir + "/raminfo.csv"));
 			while (it.hasNext()) {
@@ -2282,106 +2287,27 @@ public class RedisClusterManager {
 	 * 按key分类进行统计
 	 */
 	public void raminfo(String node) {
-		Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
-		while (nodes.hasNext()) {
-			Entry<String, JedisPool> entry = nodes.next();
-			if (null != node) {
-				if (!node.equals(entry.getKey())) {
+		if (null != node) {
+			String[] hostInfo = node.split(":");
+			Jedis jedis = new Jedis(hostInfo[0], Integer.valueOf(hostInfo[1]));
+			nodeAnalyze(exportTheadList, node, jedis);
+		} else {
+			Iterator<Entry<String, JedisPool>> nodes = cluster.getClusterNodes().entrySet().iterator();
+			while (nodes.hasNext()) {
+				Entry<String, JedisPool> entry = nodes.next();
+				if (null != node) {
+					if (!node.equals(entry.getKey())) {
+						continue;
+					}
+				}
+				final Jedis nodeCli = entry.getValue().getResource();
+				String info = entry.getValue().getResource().info();
+				if (null == node && info.contains("role:slave")) {//如果没有指定节点，统计所有master
 					continue;
 				}
+				nodeAnalyze(exportTheadList, entry.getKey(), nodeCli);
 			}
-			final Jedis nodeCli = entry.getValue().getResource();
-			String info = entry.getValue().getResource().info();
-			if (null == node && info.contains("role:slave")) {//如果没有指定节点，统计所有master
-				continue;
-			}
-			Thread exportThread = new Thread(new Runnable() {
-				@Override
-				public void run() {
-					String cursor = "0";
-					int len = "serializedlength:".length();
-					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
-						cursor = keys.getStringCursor();
-						List<String> result = keys.getResult();
-						for (String key : result) {
-							String debug = nodeCli.debug(DebugParams.OBJECT(key));
-							int startIndex = debug.indexOf("serializedlength:");
-							int endIndex = debug.indexOf(" ", startIndex);
-							debug = debug.substring(startIndex + len, endIndex);
-
-							int i = 0;
-							//key = "s_c_p23926";//testkey
-							//key = "26228273praiseto101909365showid10290";//testkey
-
-							if (key.startsWith("rpcUserInfo")) {
-								key = "rpcUserInfo";
-							} else if (key.startsWith("s_url")) {
-								key = "s_url";
-							} else if (key.startsWith("live_link_")) {
-								key = "live_link_";
-							} else if (key.startsWith("historyappmessages")) {
-								key = "historyappmessages";
-							} else if (key.startsWith("historyadminmessages")) {
-								key = "historyadminmessages";
-							} else if (key.contains("praiseto") && key.contains("showid")) {
-								key = "praisetoshowid";
-							} else if (key.contains("followuser")) {
-								key = "followuser";
-							} else if (key.startsWith("user_relations")) {
-								key = "user_relations";
-							} else if (key.startsWith("user_relation_")) {
-								key = "user_relation_";
-							} else {
-								char c;
-								boolean isFindDecollator = false, isKnowBusiness = false;
-								for (; i < key.length(); i++) {
-									c = key.charAt(i);
-									if (key.charAt(i) == '_') {
-										isFindDecollator = true;
-									}
-									if (c == ':') {
-										isFindDecollator = true;
-										key = key.substring(0, i);
-										break;
-									} else if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
-										key = key.substring(0, i);
-										isKnowBusiness = true;
-										break;
-									}
-								}
-								if (!isKnowBusiness && !isFindDecollator) {//没有加业务前缀
-									ramUnknowKey.append(key).append(',');
-									key = "unknown";
-								}
-							}
-
-							AtomicLong sizeCount = ramSizeCount.get(key);
-							if (null == sizeCount) {
-								sizeCount = new AtomicLong();
-								ramSizeCount.put(key, sizeCount);
-							}
-							sizeCount.addAndGet(Long.valueOf(debug));
-
-							AtomicLong keyCount = ramKeyCount.get(key);
-							if (null == keyCount) {
-								keyCount = new AtomicLong();
-								ramKeyCount.put(key, keyCount);
-							}
-							keyCount.incrementAndGet();
-							long scanCount = readCount.incrementAndGet();
-							if (scanCount % 100000 == 0) {
-								System.out.print("scan key size:" + scanCount);
-								writeRamInfo();
-							}
-						}
-					} while ((!"0".equals(cursor)));
-				}
-
-			}, entry.getKey() + "raminfo thread");
-			exportTheadList.add(exportThread);
-			exportThread.start();
 		}
 
 		for (Thread thread : exportTheadList) {
@@ -2402,6 +2328,97 @@ public class RedisClusterManager {
 		float speed = (float) (totalCount / (useTime / 1000.0));
 		System.out.println("scan total:" + totalCount + " speed:" + speedFormat.format(speed) + " useTime:"
 				+ (useTime / 1000.0) + "s");
+	}
+
+	private void nodeAnalyze(List<Thread> exportTheadList, String node, final Jedis nodeCli) {
+		Thread exportThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				String cursor = "0";
+				ScanParams sp = new ScanParams();
+				sp.count(10000);
+				int len = "serializedlength:".length();
+				do {
+					ScanResult<String> keys = nodeCli.scan(cursor, sp);
+					cursor = keys.getStringCursor();
+					List<String> result = keys.getResult();
+					for (String key : result) {
+						String debug = nodeCli.debug(DebugParams.OBJECT(key));
+						int startIndex = debug.indexOf("serializedlength:");
+						int endIndex = debug.indexOf(" ", startIndex);
+						debug = debug.substring(startIndex + len, endIndex);
+
+						int i = 0;
+						//key = "s_c_p23926";//testkey
+						//key = "26228273praiseto101909365showid10290";//testkey
+
+						if (key.startsWith("rpcUserInfo")) {
+							key = "rpcUserInfo";
+						} else if (key.startsWith("s_url")) {
+							key = "s_url";
+						} else if (key.startsWith("live_link_")) {
+							key = "live_link_";
+						} else if (key.startsWith("historyappmessages")) {
+							key = "historyappmessages";
+						} else if (key.startsWith("historyadminmessages")) {
+							key = "historyadminmessages";
+						} else if (key.contains("praiseto") && key.contains("showid")) {
+							key = "praisetoshowid";
+						} else if (key.contains("followuser")) {
+							key = "followuser";
+						} else if (key.startsWith("user_relations")) {
+							key = "user_relations";
+						} else if (key.startsWith("user_relation_")) {
+							key = "user_relation_";
+						} else {
+							char c;
+							boolean isFindDecollator = false, isKnowBusiness = false;
+							for (; i < key.length(); i++) {
+								c = key.charAt(i);
+								if (key.charAt(i) == '_') {
+									isFindDecollator = true;
+								}
+								if (c == ':') {
+									isFindDecollator = true;
+									key = key.substring(0, i);
+									break;
+								} else if (isFindDecollator && i > 0 && c >= '0' && c <= '9') {
+									key = key.substring(0, i);
+									isKnowBusiness = true;
+									break;
+								}
+							}
+							if (!isKnowBusiness && !isFindDecollator) {//没有加业务前缀
+								ramUnknowKey.append(key).append(',');
+								key = "unknown";
+							}
+						}
+
+						AtomicLong sizeCount = ramSizeCount.get(key);
+						if (null == sizeCount) {
+							sizeCount = new AtomicLong();
+							ramSizeCount.put(key, sizeCount);
+						}
+						sizeCount.addAndGet(Long.valueOf(debug));
+
+						AtomicLong keyCount = ramKeyCount.get(key);
+						if (null == keyCount) {
+							keyCount = new AtomicLong();
+							ramKeyCount.put(key, keyCount);
+						}
+						keyCount.incrementAndGet();
+						long scanCount = readCount.incrementAndGet();
+						if (scanCount % 100000 == 0) {
+							System.out.print("scan key size:" + scanCount);
+							writeRamInfo();
+						}
+					}
+				} while ((!"0".equals(cursor)));
+			}
+
+		}, node + "-raminfo");
+		exportTheadList.add(exportThread);
+		exportThread.start();
 	}
 
 	/**
