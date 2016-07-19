@@ -56,6 +56,10 @@ public class RedisClusterManager {
 	private static JedisCluster cluster;
 	static final int DEFAULT_TIMEOUT = 2000;
 	static final int MAX_REDIRECTIONS = 25;//应该大于等于主节点数
+	static ScanParams sp = new ScanParams();
+	static {
+		sp.count(10000);
+	}
 
 	private static void connectCluser() {
 		Set<HostAndPort> nodes = new HashSet<HostAndPort>();
@@ -415,7 +419,7 @@ public class RedisClusterManager {
 								String hcursor = "0";
 								JSONArray value = new JSONArray();
 								do {
-									ScanResult<Entry<String, String>> hscanResult = nodeCli.hscan(key, hcursor);
+									ScanResult<Entry<String, String>> hscanResult = nodeCli.hscan(key, hcursor, sp);
 									hcursor = hscanResult.getStringCursor();
 									for (Entry<String, String> entry : hscanResult.getResult()) {
 										JSONObject valueData = new JSONObject();
@@ -445,7 +449,7 @@ public class RedisClusterManager {
 								String scursor = "0";
 								JSONArray value = new JSONArray();
 								do {
-									ScanResult<String> sscanResult = nodeCli.sscan(key, scursor);
+									ScanResult<String> sscanResult = nodeCli.sscan(key, scursor, sp);
 									scursor = sscanResult.getStringCursor();
 									for (String data : sscanResult.getResult()) {
 										value.add(data);
@@ -456,7 +460,7 @@ public class RedisClusterManager {
 								String zcursor = "0";
 								JSONArray value = new JSONArray();
 								do {
-									ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
+									ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
 									zcursor = sscanResult.getStringCursor();
 									for (Tuple data : sscanResult.getResult()) {
 										JSONObject dataJson = new JSONObject();
@@ -605,7 +609,7 @@ public class RedisClusterManager {
 				String hcursor = "0";
 				JSONObject json = new JSONObject();
 				do {
-					ScanResult<Tuple> hscanResult = cluster.zscan(indexKey, hcursor);
+					ScanResult<Tuple> hscanResult = cluster.zscan(indexKey, hcursor, sp);
 					hcursor = hscanResult.getStringCursor();
 					String fileExt;
 					for (Tuple entry : hscanResult.getResult()) {
@@ -833,7 +837,7 @@ public class RedisClusterManager {
 				public void run() {
 					String cursor = "0";
 					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
+						ScanResult<String> keys = nodeCli.scan(cursor, sp);
 						cursor = keys.getStringCursor();
 						List<String> result = keys.getResult();
 						for (String key : result) {
@@ -863,7 +867,7 @@ public class RedisClusterManager {
 							String zcursor = "0";
 							String u_a_id;
 							do {
-								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
+								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
 								zcursor = sscanResult.getStringCursor();
 								for (Tuple data : sscanResult.getResult()) {
 									u_a_id = data.getElement();
@@ -941,8 +945,9 @@ public class RedisClusterManager {
 				@Override
 				public void run() {
 					String cursor = "0";
+
 					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
+						ScanResult<String> keys = nodeCli.scan(cursor, sp);
 						cursor = keys.getStringCursor();
 						List<String> result = keys.getResult();
 						for (String key : result) {
@@ -975,7 +980,7 @@ public class RedisClusterManager {
 							String zcursor = "0";
 							String u_f_id;
 							do {
-								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
+								ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
 								zcursor = sscanResult.getStringCursor();
 								for (Tuple data : sscanResult.getResult()) {
 									u_f_id = data.getElement();
@@ -1024,34 +1029,6 @@ public class RedisClusterManager {
 		}
 	}
 
-	public void tagCheck(String uids, final String filePath) {
-		/*String zcursor = "0", KEY_BIGV_SET = "bigVSet:", bigVuid = null;
-		do {
-			ScanResult<Tuple> sscanResult = cluster.zscan(KEY_BIGV_SET, zcursor);
-			zcursor = sscanResult.getStringCursor();
-			for (Tuple data : sscanResult.getResult()) {
-				bigVuid = data.getElement();
-			}
-			final String checkUid = bigVuid;
-			new Thread(new Runnable() {
-				@Override
-				public void run() {
-					bigVAdd(checkUid);
-				}
-			}, "bigVCheckTag-" + checkUid).start();
-		} while (!"0".equals(zcursor));*/
-
-		for (String uid : uids.split(",")) {
-			final String checkUid = uid;
-			new Thread(new Runnable() {
-				@Override
-				public void run() {
-					bigVAdd(checkUid, filePath);
-				}
-			}, "bigVCheckTag-" + checkUid).start();
-		}
-	}
-
 	/**
 	 * hook线程
 	 */
@@ -1067,62 +1044,6 @@ public class RedisClusterManager {
 				e.printStackTrace();
 			}
 		}
-	}
-
-	private static void bigVAdd(String bigVuid, final String filePath) {
-		String zcursor = "0", fansUid;
-		int fansOpenSwitchCount = 0, fansCount = 0, PUSH_BAT_SIZE = 10000;
-		StringBuffer sb = new StringBuffer();
-		StringBuffer notOpenPush = new StringBuffer();
-		String KEY_USER_FANS_ZSET = "u_f_";
-		do {
-			ScanResult<Tuple> sscanResult = cluster.zscan(KEY_USER_FANS_ZSET + bigVuid, zcursor);
-			zcursor = sscanResult.getStringCursor();
-			for (Tuple data : sscanResult.getResult()) {
-				fansCount++;
-				fansUid = data.getElement().trim();
-				if (isLivePushOpen(fansUid)) {
-					try {
-						int fansUidInt = Integer.valueOf(fansUid);
-						sb.append(fansUidInt).append(",");
-						fansOpenSwitchCount++;
-						if (fansOpenSwitchCount % PUSH_BAT_SIZE == 0) {
-							if (sb.length() > 0) {
-								sb.delete(sb.lastIndexOf(","), sb.length());
-							}
-							writeFile(bigVuid + "->" + sb.toString(), "check", filePath);
-							sb.setLength(0);
-							System.out.println("tagCheckCount->bigVuid:" + bigVuid + " fansCount:" + fansCount
-									+ " fansOpenSwitchCount:" + fansOpenSwitchCount);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-						System.out.println("tagCheckfansUidError->bigVuid:" + bigVuid + " fansUid[" + fansUid + "]");
-					}
-				} else {
-					notOpenPush.append(fansUid).append(',');
-				}
-			}
-		} while (!"0".equals(zcursor));
-		if (sb.length() > 0) {
-			sb.delete(sb.lastIndexOf(","), sb.length());
-			writeFile(bigVuid + "->" + sb.toString(), "check", filePath);
-		}
-		String tagCheckInfo = "tagCheckInfo->bigVuid:" + bigVuid + " fansCount:" + fansCount + " fansOpenSwitchCount:"
-				+ fansOpenSwitchCount;
-		System.out.println(tagCheckInfo);
-		if (notOpenPush.length() > 0) {
-			notOpenPush.delete(notOpenPush.lastIndexOf(","), notOpenPush.length());
-			writeFile("notOpenPush->bigVuid:" + bigVuid + " notOpenUid:" + notOpenPush.toString(), "check", filePath);
-			writeFile(tagCheckInfo, "check", filePath);
-		}
-	}
-
-	private static boolean isLivePushOpen(String uid) {
-		Map<String, String> pmap = cluster.hgetAll("pushswitch:" + uid); //push开关
-		int live_switch = pmap.get("live_switch") == null ? -1 : Integer.parseInt(pmap.get("live_switch"));
-		boolean isLiveOpen = live_switch == -1 || live_switch == 0;
-		return isLiveOpen;
 	}
 
 	/**
@@ -1151,7 +1072,7 @@ public class RedisClusterManager {
 				public void run() {
 					String cursor = "0";
 					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
+						ScanResult<String> keys = nodeCli.scan(cursor, sp);
 						cursor = keys.getStringCursor();
 						List<String> result = keys.getResult();
 						for (String key : result) {
@@ -1236,7 +1157,7 @@ public class RedisClusterManager {
 		String hcursor = "0";
 		JSONObject json = new JSONObject();
 		do {
-			ScanResult<Tuple> hscanResult = cluster.zscan(key, hcursor);
+			ScanResult<Tuple> hscanResult = cluster.zscan(key, hcursor, sp);
 			hcursor = hscanResult.getStringCursor();
 			String fileExt;
 			for (Tuple entry : hscanResult.getResult()) {
@@ -1313,7 +1234,7 @@ public class RedisClusterManager {
 				String hcursor = "0";
 				JSONArray value = new JSONArray();
 				do {
-					ScanResult<Entry<String, String>> hscanResult = cluster.hscan(key, hcursor);
+					ScanResult<Entry<String, String>> hscanResult = cluster.hscan(key, hcursor, sp);
 					hcursor = hscanResult.getStringCursor();
 					for (Entry<String, String> entry : hscanResult.getResult()) {
 						JSONObject valueData = new JSONObject();
@@ -1343,7 +1264,7 @@ public class RedisClusterManager {
 				String scursor = "0";
 				JSONArray value = new JSONArray();
 				do {
-					ScanResult<String> sscanResult = cluster.sscan(key, scursor);
+					ScanResult<String> sscanResult = cluster.sscan(key, scursor, sp);
 					scursor = sscanResult.getStringCursor();
 					for (String data : sscanResult.getResult()) {
 						value.add(data);
@@ -1354,7 +1275,7 @@ public class RedisClusterManager {
 				String zcursor = "0";
 				JSONArray value = new JSONArray();
 				do {
-					ScanResult<Tuple> sscanResult = cluster.zscan(key, zcursor);
+					ScanResult<Tuple> sscanResult = cluster.zscan(key, zcursor, sp);
 					zcursor = sscanResult.getStringCursor();
 					for (Tuple data : sscanResult.getResult()) {
 						JSONObject dataJson = new JSONObject();
@@ -1391,7 +1312,6 @@ public class RedisClusterManager {
 
 	/**
 	 * 按key导出数据
-	 * TODO 多线程导出
 	 */
 	public void exportKeyOneHost(String keyPre, String filePath) {
 		String[] exportKeyPre = keyPre.split(",");
@@ -1408,7 +1328,7 @@ public class RedisClusterManager {
 		String cursor = "0";
 		long thisScanSize = 0, thisExportSize = 0;
 		do {
-			ScanResult<String> keys = nodeCli.scan(cursor);
+			ScanResult<String> keys = nodeCli.scan(cursor, sp);
 			cursor = keys.getStringCursor();
 			List<String> result = keys.getResult();
 			for (String key : result) {
@@ -1439,7 +1359,7 @@ public class RedisClusterManager {
 					String hcursor = "0";
 					JSONArray value = new JSONArray();
 					do {
-						ScanResult<Entry<String, String>> hscanResult = nodeCli.hscan(key, hcursor);
+						ScanResult<Entry<String, String>> hscanResult = nodeCli.hscan(key, hcursor, sp);
 						hcursor = hscanResult.getStringCursor();
 						for (Entry<String, String> entry : hscanResult.getResult()) {
 							JSONObject valueData = new JSONObject();
@@ -1470,7 +1390,7 @@ public class RedisClusterManager {
 					String scursor = "0";
 					JSONArray value = new JSONArray();
 					do {
-						ScanResult<String> sscanResult = nodeCli.sscan(key, scursor);
+						ScanResult<String> sscanResult = nodeCli.sscan(key, scursor, sp);
 						scursor = sscanResult.getStringCursor();
 						for (String data : sscanResult.getResult()) {
 							value.add(data);
@@ -1481,7 +1401,7 @@ public class RedisClusterManager {
 					String zcursor = "0";
 					JSONArray value = new JSONArray();
 					do {
-						ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor);
+						ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
 						zcursor = sscanResult.getStringCursor();
 						for (Tuple data : sscanResult.getResult()) {
 							JSONObject dataJson = new JSONObject();
@@ -1878,7 +1798,7 @@ public class RedisClusterManager {
 				public void run() {
 					String cursor = "0";
 					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
+						ScanResult<String> keys = nodeCli.scan(cursor, sp);
 						cursor = keys.getStringCursor();
 						List<String> result = keys.getResult();
 						for (String key : result) {
@@ -2042,12 +1962,6 @@ public class RedisClusterManager {
 					rcm.ufCheck(args[1]);
 				} else {
 					System.out.println("fansCheck D:/export.dat");
-				}
-			} else if ("tagCheck".equals(args[0])) {
-				if (args.length == 3) {
-					rcm.tagCheck(args[1], args[2]);
-				} else {
-					System.out.println("tagCheck uids D:/tagCheck.dat");
 				}
 			} else if ("raminfo".equals(args[0])) {
 				if (args.length == 2) {
@@ -2335,8 +2249,6 @@ public class RedisClusterManager {
 			@Override
 			public void run() {
 				String cursor = "0";
-				ScanParams sp = new ScanParams();
-				sp.count(10000);
 				int len = "serializedlength:".length();
 				do {
 					ScanResult<String> keys = nodeCli.scan(cursor, sp);
@@ -2443,7 +2355,7 @@ public class RedisClusterManager {
 				public void run() {
 					String cursor = "0";
 					do {
-						ScanResult<String> keys = nodeCli.scan(cursor);
+						ScanResult<String> keys = nodeCli.scan(cursor, sp);
 						cursor = keys.getStringCursor();
 						List<String> result = keys.getResult();
 						for (String key : result) {
