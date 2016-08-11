@@ -96,6 +96,134 @@ public class RedisClusterManager {
 	 * 按照key前缀查询
 	 * @param importIfNotExit
 	 */
+	public void praiseCount(final String importKey, final String filePath) {
+		final List<String> dataQueue = Collections.synchronizedList(new LinkedList<String>());// 待处理数据队列
+
+		final Thread[] writeThread = new Thread[cluster.getClusterNodes().size() * 3];//节点数的3倍
+		Thread readThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					long start = 0, end = start + 10000;
+					Set<String> data;
+					do {
+						data = cluster.zrange(importKey, start, end);
+						start = end;
+						end = start + 10000;
+
+						dataQueue.addAll(data);
+						long count = readCount.addAndGet(data.size());
+						if (count % 50000 == 0) {
+							if (readLastCountTime > 0) {
+								long useTime = System.currentTimeMillis() - readLastCountTime;
+								float speed = (float) ((count - lastReadCount.get()) / (useTime / 1000.0));
+								System.out.println("read count:" + count + " speed:" + speedFormat.format(speed));
+							}
+							readLastCountTime = System.currentTimeMillis();
+							lastReadCount.set(count);
+							synchronized (dataQueue) {
+								Collections.shuffle(dataQueue);//导出是按节点导出的，这样可以提升性能
+							}
+							while (dataQueue.size() > 100000) {//防止内存写爆了
+								Thread.sleep(1000);
+							}
+						}
+					} while (data.size() > 0);
+
+					synchronized (dataQueue) {
+						Collections.shuffle(dataQueue);
+					}
+					isCompleted = true;
+
+					while (!dataQueue.isEmpty()) {//等待数据写入完成
+						Thread.sleep(500);
+					}
+					long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = readCount.get();
+					float speed = (float) (totalCount / (useTime / 1000.0));
+					System.out.println("write total:" + totalCount + " speed:" + speedFormat.format(speed)
+							+ " useTime:" + (useTime / 1000.0) + "s");
+					for (int i = 0; i <= writeThread.length - 1; i++) {
+						writeThread[i].interrupt();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		readThread.start();
+
+		for (int i = 0; i <= writeThread.length - 1; i++) {
+			writeThread[i] = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					while (!isCompleted || !dataQueue.isEmpty()) {
+						String uid = null;
+						if (dataQueue.isEmpty()) {
+							try {
+								Thread.sleep(100);
+								continue;
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+						} else {
+							try {
+								synchronized (dataQueue) {
+									uid = dataQueue.remove(0);
+								}
+							} catch (IndexOutOfBoundsException e) {
+								continue;
+							}
+						}
+
+						long uf = cluster.zcard("u_f_" + uid);
+						long ua = cluster.zcard("u_a_" + uid);
+						long up = cluster.zcard("u_p_" + uid);
+
+						String info = "uid:" + uid + " uf:" + uf + " ua:" + ua + " up:" + up;
+						if (uf == 0 && ua <= 1 && up == 2) {
+							long count = writeCount.incrementAndGet();
+							System.out.println("marked->" + info);
+							if (count % 10000 == 0) {
+								if (writeLastCountTime > 0) {
+									long useTime = System.currentTimeMillis() - writeLastCountTime;
+									float speed = (float) ((count - lastWriteCount.get()) / (useTime / 1000.0));
+									System.out.println("write count:" + count + "/" + readCount + " speed:"
+											+ speedFormat.format(speed));
+								}
+								writeLastCountTime = System.currentTimeMillis();
+								lastWriteCount.set(count);
+							}
+						}
+
+					}
+				}
+			}, "write thread [" + i + "]");
+			writeThread[i].setDaemon(true);
+			writeThread[i].start();
+		}
+
+		for (Thread thread : writeThread) {
+			do {
+				if (thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			} while (thread.isAlive());
+		}
+
+		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
+		float speed = (float) (totalCount / (useTime / 1000.0));
+		System.out.println("scanCount:" + readCount.get() + " markedCount:" + totalCount + " errorCount:"
+				+ errorCount.get() + " speed:" + speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
+	}
+
+	/**
+	 * 按照key前缀查询
+	 * @param importIfNotExit
+	 */
 	public void importKey(String importKey, final String filePath) {
 		final String[] importKeyPre = importKey.split(",");
 
@@ -1950,6 +2078,12 @@ public class RedisClusterManager {
 					rcm.fansCount(args[1]);
 				} else {
 					System.out.println("fansCount D:/export.dat");
+				}
+			} else if ("praiseCount".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.praiseCount(args[1], args[2]);
+				} else {
+					System.out.println("praiseCount D:/export.dat");
 				}
 			} else if ("uaCheck".equals(args[0])) {
 				if (args.length == 2) {
