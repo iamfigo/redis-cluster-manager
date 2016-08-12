@@ -93,6 +93,20 @@ public class RedisClusterManager {
 	private static boolean isCompleted = false;
 
 	/**
+	 * 删除点赞
+	 * @param importIfNotExit
+	 * @throws Exception 
+	 */
+	public void praiseDel(final String delKey, final String filePath) throws Exception {
+		BufferedReader br = new BufferedReader(new FileReader(filePath));
+		String data = null;
+		while ((data = br.readLine()) != null) {
+			cluster.zrem(delKey, data.trim());
+		}
+		br.close();
+	}
+
+	/**
 	 * 按照key前缀查询
 	 * @param importIfNotExit
 	 */
@@ -100,19 +114,33 @@ public class RedisClusterManager {
 		final List<String> dataQueue = Collections.synchronizedList(new LinkedList<String>());// 待处理数据队列
 
 		final Thread[] writeThread = new Thread[cluster.getClusterNodes().size() * 3];//节点数的3倍
+		final Map<String, AtomicLong> statisticsMap = new TreeMap<String, AtomicLong>();
 		Thread readThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					long start = 0, end = start + 10000;
-					Set<String> data;
+					String cursor = "0";
+					Date date = new Date();
+					java.text.DateFormat format1 = new java.text.SimpleDateFormat("yyyy-MM-dd-HH");
 					do {
-						data = cluster.zrange(importKey, start, end);
-						start = end;
-						end = start + 10000;
+						ScanResult<Tuple> sscanResult = cluster.zscan(importKey, cursor, sp);
+						cursor = sscanResult.getStringCursor();
+						List<Tuple> result = sscanResult.getResult();
 
-						dataQueue.addAll(data);
-						long count = readCount.addAndGet(data.size());
+						double time;
+						for (Tuple tuple : result) {
+							dataQueue.add(tuple.getElement());
+							time = tuple.getScore();
+							date.setTime((long) (time * 1000));
+							String key = format1.format(date);
+							AtomicLong count = statisticsMap.get(key);
+							if (null == count) {
+								count = new AtomicLong();
+								statisticsMap.put(key, count);
+							}
+							count.incrementAndGet();
+						}
+						long count = readCount.addAndGet(result.size());
 						if (count % 50000 == 0) {
 							if (readLastCountTime > 0) {
 								long useTime = System.currentTimeMillis() - readLastCountTime;
@@ -128,7 +156,7 @@ public class RedisClusterManager {
 								Thread.sleep(1000);
 							}
 						}
-					} while (data.size() > 0);
+					} while (!"0".equals(cursor));
 
 					synchronized (dataQueue) {
 						Collections.shuffle(dataQueue);
@@ -213,6 +241,14 @@ public class RedisClusterManager {
 				}
 			} while (thread.isAlive());
 		}
+
+		System.out.println("statisticsMap->begin");
+		Iterator<Entry<String, AtomicLong>> it = statisticsMap.entrySet().iterator();
+		while (it.hasNext()) {
+			Entry<String, AtomicLong> entry = it.next();
+			System.out.println(entry.getKey() + "->" + entry.getValue());
+		}
+		System.out.println("statisticsMap->end");
 
 		long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = writeCount.get();
 		float speed = (float) (totalCount / (useTime / 1000.0));
@@ -605,7 +641,7 @@ public class RedisClusterManager {
 							json.put("time", System.currentTimeMillis());
 							writeFile(json.toJSONString(), "export", filePath);
 						}
-					} while ((!"0".equals(cursor)));
+					} while (!"0".equals(cursor));
 				}
 			}, entry.getKey() + "export thread");
 			exportTheadList.add(exportThread);
@@ -2078,6 +2114,12 @@ public class RedisClusterManager {
 					rcm.fansCount(args[1]);
 				} else {
 					System.out.println("fansCount D:/export.dat");
+				}
+			} else if ("praiseDel".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.praiseDel(args[1], args[2]);
+				} else {
+					System.out.println("praiseDel D:/export.dat");
 				}
 			} else if ("praiseCount".equals(args[0])) {
 				if (args.length == 3) {
