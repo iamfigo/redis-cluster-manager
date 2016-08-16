@@ -1043,16 +1043,24 @@ public class RedisClusterManager {
 
 							String errorInfo;
 
-							if (null != cluster.zrem("u_a_" + uid, uid)) {//自己关注自己的需要去掉
-								errorInfo = uid + "-u_a_>" + uid;
+							Double score;
+							Date time = new Date();
+							if (null != (score = cluster.zscore("u_a_" + uid, uid))) {//自己关注自己的需要去掉
+								time.setTime((long) (score * 1000));
+								errorInfo = uid + "-u_a_>" + uid + " score:" + time;
+								cluster.zrem("u_a_" + uid, uid);
 								writeFile(errorInfo, "export", filePath);
 							}
-							if (null != cluster.zrem("u_f_" + uid, uid)) {//自己是自己的粉丝需要去掉
-								errorInfo = uid + "-u_f_>" + uid;
+							if (null != (score = cluster.zscore("u_f_" + uid, uid))) {//自己是自己的粉丝需要去掉
+								time.setTime((long) (score * 1000));
+								errorInfo = uid + "-u_f_>" + uid + " score:" + time;
+								cluster.zrem("u_f_" + uid, uid);
 								writeFile(errorInfo, "export", filePath);
 							}
-							if (null != cluster.zrem("u_friend_" + uid, uid)) {//去掉好友关系
-								errorInfo = uid + "-u_friend_>" + uid;
+							if (null != (score = cluster.zscore("u_friend_" + uid, uid))) {//去掉好友关系
+								time.setTime((long) (score * 1000));
+								errorInfo = uid + "-u_friend_>" + uid + " score:" + time;
+								cluster.zrem("u_friend_" + uid, uid);
 								writeFile(errorInfo, "export", filePath);
 							}
 
@@ -1063,7 +1071,7 @@ public class RedisClusterManager {
 								zcursor = sscanResult.getStringCursor();
 								for (Tuple data : sscanResult.getResult()) {
 									u_a_id = data.getElement();
-									double score = data.getScore();
+									score = data.getScore();
 									checkCount.incrementAndGet();
 									if ("99521678".endsWith(u_a_id) || "88011458".equals(u_a_id)) {
 										continue;//种草君，假leo不管
