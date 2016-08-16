@@ -1041,6 +1041,21 @@ public class RedisClusterManager {
 								continue;
 							}
 
+							String errorInfo;
+
+							if (null != cluster.zrem("u_a_" + uid, uid)) {//自己关注自己的需要去掉
+								errorInfo = uid + "-u_a_>" + uid;
+								writeFile(errorInfo, "export", filePath);
+							}
+							if (null != cluster.zrem("u_f_" + uid, uid)) {//自己是自己的粉丝需要去掉
+								errorInfo = uid + "-u_f_>" + uid;
+								writeFile(errorInfo, "export", filePath);
+							}
+							if (null != cluster.zrem("u_friend_" + uid, uid)) {//去掉好友关系
+								errorInfo = uid + "-u_friend_>" + uid;
+								writeFile(errorInfo, "export", filePath);
+							}
+
 							String zcursor = "0";
 							String u_a_id;
 							do {
@@ -1052,20 +1067,6 @@ public class RedisClusterManager {
 									checkCount.incrementAndGet();
 									if ("99521678".endsWith(u_a_id) || "88011458".equals(u_a_id)) {
 										continue;//种草君，假leo不管
-									}
-
-									String errorInfo;
-									if (null != cluster.zrem("u_a_" + u_a_id, u_a_id)) {//自己关注自己的需要去掉
-										errorInfo = uid + "-u_a_>" + u_a_id;
-										writeFile(errorInfo, "export", filePath);
-									}
-									if (null != cluster.zrem("u_f_" + u_a_id, u_a_id)) {//自己是自己的粉丝需要去掉
-										errorInfo = uid + "-u_f_>" + u_a_id;
-										writeFile(errorInfo, "export", filePath);
-									}
-									if (null != cluster.zrem("u_friend_" + u_a_id, u_a_id)) {//去掉好友关系
-										errorInfo = uid + "-u_friend_>" + u_a_id;
-										writeFile(errorInfo, "export", filePath);
 									}
 
 									if (null == cluster.zscore("u_f_" + u_a_id, uid)) {//关注了粉丝列表没有
