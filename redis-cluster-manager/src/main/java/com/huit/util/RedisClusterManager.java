@@ -99,11 +99,24 @@ public class RedisClusterManager {
 	 */
 	public void praiseDel(final String delKey, final String filePath) throws Exception {
 		BufferedReader br = new BufferedReader(new FileReader(filePath));
+		BufferedWriter bw = new BufferedWriter(new FileWriter(filePath + ".deleted"));
 		String data = null;
+		long delCount = 0, readCount = 0;
 		while ((data = br.readLine()) != null) {
-			cluster.zrem(delKey, data.trim());
+			readCount++;
+			Double score = cluster.zscore(delKey, data.trim());
+			if (null != score) {
+				long reslut = cluster.zrem(delKey, data.trim());
+				if (1 == reslut) {
+					delCount++;
+					bw.write(data.trim() + "->" + score);
+					bw.write("\r\n");
+				}
+			}
 		}
 		br.close();
+		bw.close();
+		System.out.println("readCount:" + readCount + " delCount:" + delCount);
 	}
 
 	/**
@@ -976,7 +989,7 @@ public class RedisClusterManager {
 	}
 
 	/**
-	 * 按key导出数据
+	 * 根据用户关注关系修复数据，如果已经关注却不在粉丝队列里向粉丝队列里添加；删除自己关注自己、自己是自己的粉丝、自己是自己的好友的数据
 	 */
 	public void uaCheck(final String filePath) {
 		final String u_a_ = "u_a_";
@@ -1040,10 +1053,25 @@ public class RedisClusterManager {
 									if ("99521678".endsWith(u_a_id) || "88011458".equals(u_a_id)) {
 										continue;//种草君，假leo不管
 									}
+
+									String errorInfo;
+									if (null != cluster.zrem("u_a_" + u_a_id, u_a_id)) {//自己关注自己的需要去掉
+										errorInfo = uid + "-u_a_>" + u_a_id;
+										writeFile(errorInfo, "export", filePath);
+									}
+									if (null != cluster.zrem("u_f_" + u_a_id, u_a_id)) {//自己是自己的粉丝需要去掉
+										errorInfo = uid + "-u_f_>" + u_a_id;
+										writeFile(errorInfo, "export", filePath);
+									}
+									if (null != cluster.zrem("u_friend_" + u_a_id, u_a_id)) {//去掉好友关系
+										errorInfo = uid + "-u_friend_>" + u_a_id;
+										writeFile(errorInfo, "export", filePath);
+									}
+
 									if (null == cluster.zscore("u_f_" + u_a_id, uid)) {//关注了粉丝列表没有
 										cluster.zadd("u_f_" + u_a_id, score, uid);//向粉丝列表添加来修复数据
 										errorCount.incrementAndGet();
-										String errorInfo = uid + "->" + u_a_id;
+										errorInfo = uid + "->" + u_a_id;
 										System.out.println(errorInfo);
 										writeFile(errorInfo, "export", filePath);
 									}
@@ -1085,7 +1113,7 @@ public class RedisClusterManager {
 	}
 
 	/**
-	 * 按key导出数据
+	 * 根据粉丝队列修复数据，如果没有关注从关注队列里去掉
 	 */
 	public void ufCheck(final String filePath) {
 		final String u_f_ = "u_f_";
