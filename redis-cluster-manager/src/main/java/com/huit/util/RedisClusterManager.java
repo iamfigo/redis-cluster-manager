@@ -120,6 +120,30 @@ public class RedisClusterManager {
 	}
 
 	/**
+	 * 不真正删除，只计算点赞数
+	 * @param importIfNotExit
+	 * @throws Exception 
+	 */
+	public void praiseCountDel(final String delKey, final String filePath) throws Exception {
+		BufferedReader br = new BufferedReader(new FileReader(filePath));
+		BufferedWriter bw = new BufferedWriter(new FileWriter(filePath + ".deleted"));
+		String data = null;
+		long delCount = 0, readCount = 0;
+		while ((data = br.readLine()) != null) {
+			readCount++;
+			String value = data.trim();
+			Double score = cluster.zscore(delKey, value);
+			if (null != score) {
+				bw.write(value + "->" + score);
+				bw.write("\r\n");
+			}
+		}
+		br.close();
+		bw.close();
+		System.out.println("readCount:" + readCount + " markedDelCount:" + delCount);
+	}
+
+	/**
 	 * 按照key前缀查询
 	 * @param importIfNotExit
 	 */
@@ -2156,7 +2180,13 @@ public class RedisClusterManager {
 				if (args.length == 3) {
 					rcm.praiseDel(args[1], args[2]);
 				} else {
-					System.out.println("praiseDel D:/export.dat");
+					System.out.println("praiseDel D:/input.dat");
+				}
+			} else if ("praiseCountDel".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.praiseCountDel(args[1], args[2]);
+				} else {
+					System.out.println("praiseCountDel D:/input.dat");
 				}
 			} else if ("praiseCount".equals(args[0])) {
 				if (args.length == 3) {
