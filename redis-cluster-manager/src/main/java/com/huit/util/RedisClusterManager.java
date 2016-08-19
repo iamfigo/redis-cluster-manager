@@ -141,7 +141,7 @@ public class RedisClusterManager {
 		}
 		br.close();
 		bw.close();
-		System.out.println("readCount:" + readCount + " markedDelCount:" + markedDelCount);
+		System.out.println("checkKey" + delKey + " readCount:" + readCount + " markedCount:" + markedDelCount);
 	}
 
 	/**
