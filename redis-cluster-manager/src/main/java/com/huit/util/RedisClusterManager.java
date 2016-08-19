@@ -128,19 +128,20 @@ public class RedisClusterManager {
 		BufferedReader br = new BufferedReader(new FileReader(filePath));
 		BufferedWriter bw = new BufferedWriter(new FileWriter(filePath + ".deleted"));
 		String data = null;
-		long delCount = 0, readCount = 0;
+		long markedDelCount = 0, readCount = 0;
 		while ((data = br.readLine()) != null) {
 			readCount++;
 			String value = data.trim();
 			Double score = cluster.zscore(delKey, value);
 			if (null != score) {
+				markedDelCount++;
 				bw.write(value + "->" + score);
 				bw.write("\r\n");
 			}
 		}
 		br.close();
 		bw.close();
-		System.out.println("readCount:" + readCount + " markedDelCount:" + delCount);
+		System.out.println("readCount:" + readCount + " markedDelCount:" + markedDelCount);
 	}
 
 	/**
