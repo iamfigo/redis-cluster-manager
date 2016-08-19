@@ -426,8 +426,14 @@ public class RedisClusterManager {
 									double score = jsonData.getLong("score");
 									String dataValue = jsonData.getString("value");
 									cluster.zadd(key, score, dataValue);
-									String uid = key.substring("u_f_".length());
-									cluster.zadd("u_a_" + dataValue, score, uid);
+									String uid;
+									if (key.startsWith("u_f_")) {
+										uid = key.substring("u_f_".length());
+										cluster.zadd("u_a_" + dataValue, score, uid);
+									} else if (key.startsWith("u_a_")) {
+										uid = key.substring("u_a_".length());
+										cluster.zadd("u_f_" + dataValue, score, uid);
+									}
 								}
 							} else {
 								System.out.println("unknow keyType:" + type + "key:" + key);
