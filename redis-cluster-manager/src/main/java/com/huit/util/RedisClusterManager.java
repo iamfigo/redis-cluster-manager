@@ -295,6 +295,63 @@ public class RedisClusterManager {
 	}
 
 	/**
+	 * 清理恢复数据导致的垃圾数据
+	 */
+	public void followAttentionDel(String importKey, final String filePath) throws IOException {
+		BufferedWriter bw = new BufferedWriter(new FileWriter(filePath + ".deleted"));
+		final String[] keys = importKey.split(",");
+		long delCount = 0;
+		for (String key : keys) {
+			if (key.startsWith("u_a_")) {
+				String zcursor = "0";
+				do {
+					ScanResult<Tuple> sscanResult = cluster.zscan(key, zcursor, sp);
+					zcursor = sscanResult.getStringCursor();
+					for (Tuple data : sscanResult.getResult()) {
+						String followUid = data.getElement();
+						String uid = key.substring("u_a_".length());
+						String keyDel = "u_a_" + followUid;
+						long result = cluster.zrem(keyDel, uid);//移除关注的人对自己的关注
+						delCount++;
+						bw.write("result:" + result + " " + keyDel + "->" + data.getScore());
+						bw.write("\r\n");
+					}
+				} while (!"0".equals(zcursor));
+			}
+		}
+		bw.close();
+		System.out.println("followDel->delCount:" + delCount);
+	}
+
+	/**
+	 * 删除用户粉丝
+	 */
+	public void followDel(String importKey, final String filePath) throws IOException {
+		BufferedWriter bw = new BufferedWriter(new FileWriter(filePath + ".deleted"));
+		final String[] keys = importKey.split(",");
+		long delCount = 0;
+		for (String key : keys) {
+			if (key.startsWith("u_f_")) {
+				String zcursor = "0";
+				do {
+					ScanResult<Tuple> sscanResult = cluster.zscan(key, zcursor, sp);
+					zcursor = sscanResult.getStringCursor();
+					for (Tuple data : sscanResult.getResult()) {
+						String followUid = data.getElement();
+						String uid = key.substring("u_f_".length());
+						cluster.zrem("u_a_" + followUid, uid);//从粉丝队列移除对自己的关注
+						delCount++;
+						bw.write(followUid + "->" + data.getScore());
+						bw.write("\r\n");
+					}
+				} while (!"0".equals(zcursor));
+			}
+		}
+		bw.close();
+		System.out.println("followDel->delCount:" + delCount);
+	}
+
+	/**
 	 * 恢复用户粉丝
 	 */
 	public void followRestore(String importKey, final String filePath) {
@@ -425,14 +482,15 @@ public class RedisClusterManager {
 									JSONObject jsonData = (JSONObject) it.next();
 									double score = jsonData.getLong("score");
 									String dataValue = jsonData.getString("value");
-									cluster.zadd(key, score, dataValue);
-									String uid;
-									if (key.startsWith("u_f_")) {
-										uid = key.substring("u_f_".length());
-										cluster.zadd("u_a_" + dataValue, score, uid);
-									} else if (key.startsWith("u_a_")) {
-										uid = key.substring("u_a_".length());
-										cluster.zadd("u_f_" + dataValue, score, uid);
+
+									if (key.startsWith("u_f_")) {//粉丝队列
+										cluster.zadd(key, score, dataValue);//加粉丝
+										String uid = key.substring("u_f_".length());
+										cluster.zadd("u_a_" + dataValue, score, uid);//加关注
+									} else if (key.startsWith("u_a_")) {//关注队列
+										cluster.zadd(key, score, dataValue);//加关注
+										String uid = key.substring("u_a_".length());
+										cluster.zadd("u_f_" + dataValue, score, uid);//加粉丝
 									}
 								}
 							} else {
@@ -1798,6 +1856,101 @@ public class RedisClusterManager {
 	/**
 	 * 按key导出数据
 	 */
+	public void exportHostKeys(String host, String port, String keys, String filePath) {
+		String[] keysInfo = keys.split(",");
+		Jedis nodeCli = new Jedis(host, Integer.valueOf(port));
+		long beginTime = System.currentTimeMillis();
+		for (String key : keysInfo) {
+			JSONObject json = new JSONObject();
+			json.put("key", key);
+			String keyType = nodeCli.type(key);
+			json.put("type", keyType);
+			if ("hash".equals(keyType)) {
+				String hcursor = "0";
+				JSONArray value = new JSONArray();
+				do {
+					ScanResult<Entry<String, String>> hscanResult = nodeCli.hscan(key, hcursor, sp);
+					hcursor = hscanResult.getStringCursor();
+					for (Entry<String, String> entry : hscanResult.getResult()) {
+						JSONObject valueData = new JSONObject();
+						valueData.put("key", entry.getKey());
+						valueData.put("value", entry.getValue());
+						value.add(valueData);
+					}
+				} while (!"0".equals(hcursor));
+				json.put("value", value);
+			} else if ("string".equals(keyType)) {
+				json.put("value", nodeCli.get(key));
+			} else if ("list".equals(keyType)) {
+				int readSize, readCount = 1;
+				long start = 0, end = start + readCount;
+				JSONArray value = new JSONArray();
+				do {
+					List<String> data = nodeCli.lrange(key, start, end);
+					readSize = data.size();
+					for (int i = 0; i < readSize; i++) {
+						value.add(data.get(i));
+						//System.out.println("data:" + data.get(i));
+					}
+					start = end + 1;
+					end += readSize;
+				} while (readSize == readCount + 1);
+				json.put("value", value);
+			} else if ("set".equals(keyType)) {
+				String scursor = "0";
+				JSONArray value = new JSONArray();
+				do {
+					ScanResult<String> sscanResult = nodeCli.sscan(key, scursor, sp);
+					scursor = sscanResult.getStringCursor();
+					for (String data : sscanResult.getResult()) {
+						value.add(data);
+					}
+				} while (!"0".equals(scursor));
+				json.put("value", value);
+			} else if ("zset".equals(keyType)) {
+				String zcursor = "0";
+				JSONArray value = new JSONArray();
+				do {
+					ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
+					zcursor = sscanResult.getStringCursor();
+					for (Tuple data : sscanResult.getResult()) {
+						JSONObject dataJson = new JSONObject();
+						dataJson.put("score", data.getScore());
+						dataJson.put("value", data.getElement());
+						value.add(dataJson);
+					}
+				} while (!"0".equals(zcursor));
+				json.put("value", value);
+			} else {
+				System.out.println("unknow keyType:" + keyType + "key:" + key);
+			}
+			BufferedWriter bw = null;
+			try {
+				bw = new BufferedWriter(new FileWriter(filePath));
+				bw.write(json.toJSONString());
+				bw.write('\r');
+				bw.write('\n');
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+				try {
+					if (null != bw) {
+						bw.close();
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		nodeCli.close();
+		String useTime = " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s";
+		System.out.println(useTime);
+	}
+
+	/**
+	 * 按key导出数据
+	 */
 	public void exportKeyOneHost(String keyPre, String filePath) {
 		String[] exportKeyPre = keyPre.split(",");
 		Jedis nodeCli = new Jedis(REDIS_HOST, REDIS_PORT);
@@ -2406,7 +2559,7 @@ public class RedisClusterManager {
 		RedisClusterManager rcm = new RedisClusterManager();
 		long beginTime = System.currentTimeMillis();
 
-		if ("raminfo".equals(args[0]) || "exporth".equals(args[0])) {
+		if ("raminfo".equals(args[0]) || "exporth".equals(args[0]) || "exportHostKeys".equals(args[0])) {
 		} else {
 			connectCluser();
 		}
@@ -2439,6 +2592,24 @@ public class RedisClusterManager {
 					rcm.fansCount(args[1]);
 				} else {
 					System.out.println("fansCount D:/export.dat");
+				}
+			} else if ("exportHostKeys".equals(args[0])) {
+				if (args.length == 5) {
+					rcm.exportHostKeys(args[1], args[2], args[3], args[4]);
+				} else {
+					System.out.println("exportHostKeys ip port key1,key2 D:/export.dat");
+				}
+			} else if ("followDel".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.followDel(args[1], args[2]);
+				} else {
+					System.out.println("followDel D:/u_f_uid_delete.dat");
+				}
+			} else if ("followAttentionDel".equals(args[0])) {
+				if (args.length == 3) {
+					rcm.followAttentionDel(args[1], args[2]);
+				} else {
+					System.out.println("followAttentionDel D:/u_a_uid_delete.dat");
 				}
 			} else if ("followRestore".equals(args[0])) {
 				if (args.length == 3) {
@@ -2589,6 +2760,24 @@ public class RedisClusterManager {
 					rcm.importMongodb(args[1], args[2]);
 				} else {
 					System.out.println("import keyPattern D:/import.dat");
+				}
+			} else if ("restoreUserHash".equals(args[0])) {
+				if (args.length == 2) {
+					rcm.restoreUserHash(args[1]);
+				} else {
+					System.out.println("restoreUserHash uid1,uid2");
+				}
+			} else if ("restoreShowPraise".equals(args[0])) {
+				if (args.length == 2) {
+					rcm.restoreShowPraise(args[1]);
+				} else {
+					System.out.println("restoreUserHash uid1,uid2");
+				}
+			} else if ("followRestoreByUids".equals(args[0])) {
+				if (args.length == 2) {
+					rcm.followRestoreByUids(args[1]);
+				} else {
+					System.out.println("followRestoreByUids uid1,uid2");
 				}
 			} else if ("set".equals(args[0]) || "del".equals(args[0])) {
 				rcm.opt(args);
@@ -3913,6 +4102,215 @@ public class RedisClusterManager {
 			jedisCluster.close();
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+	}
+
+	public Jedis getOldRedis(String key) {
+		return oldRedisMap.get(JedisClusterCRC16.getCRC16(key) % 16384);
+	}
+
+	/**
+	 * 恢复关注队列和粉丝队列
+	 */
+	private void followRestoreByUids(String uids) {
+		String[] uidsArray = uids.split(",");
+		String KEY_USER_ATTENTION_ZSET = "u_a_";
+		String KEY_USER_FANS_ZSET = "u_f_";
+		for (String uid : uidsArray) {
+			if (uid.length() == 0) {
+				continue;//无效的uid
+			}
+			try {
+				//恢复关注
+				String keyAttention = KEY_USER_ATTENTION_ZSET + uid;//此用户的关注队列
+				int slot = JedisClusterCRC16.getCRC16(keyAttention) % 16384;
+				Jedis oldJedis = oldRedisMap.get(slot);
+				Set<Tuple> attentionUids = oldJedis.zrangeWithScores(keyAttention, 0, -1);
+				if (attentionUids != null && attentionUids.size() > 0) {
+					for (Tuple t : attentionUids) {
+						String attentionUid = t.getElement(); //被关注人的uid
+						double score = t.getScore();
+						cluster.zadd(keyAttention, score, attentionUid);
+						cluster.zadd(KEY_USER_FANS_ZSET + attentionUid, score, uid);//加入被关注人的粉丝队列
+					}
+				}
+				oldJedis.close();
+
+				//恢复粉丝
+				String keyFans = KEY_USER_FANS_ZSET + uid;//此用户的粉丝队列
+				int slot2222 = JedisClusterCRC16.getCRC16(keyFans) % 16384;
+				Jedis oldJedis2222 = oldRedisMap.get(slot2222);
+				Set<Tuple> fansUids = oldJedis2222.zrangeWithScores(keyFans, 0, -1);
+				if (fansUids != null && fansUids.size() > 0) {
+					for (Tuple t : fansUids) {
+						String fansUid = t.getElement(); //粉丝的uid
+						double score = t.getScore();
+						cluster.zadd(keyFans, score, fansUid);
+						cluster.zadd(KEY_USER_ATTENTION_ZSET + fansUid, score, uid);//加入粉丝的关注队列
+					}
+				}
+				oldJedis2222.close();
+			} catch (Exception e) {
+				System.out.println("followRestoreByUids 异常，当前uid:" + uid);
+				e.printStackTrace();
+			}
+		}
+	}
+
+	/**
+	 * 恢复帖子点赞
+	 */
+	private void restoreShowPraise(String uids) {
+		String[] uidsArray = uids.split(",");
+		String KEY_USER_SHOW_ZSET = "u_s_";//普通帖
+		String KEY_USER_SHOW_VIDEO_ZSET = "u_s_v_";//视频帖
+		String KEY_USER_COUNSEL_SHOW_ZSET = "u_counsel_s_";//专栏帖
+		String KEY_SHOW_PRAISE_SET = "s_p_";//帖子点赞人队列
+		for (String uid : uidsArray) {
+			if (uid.length() == 0) {//无效的uid
+				continue;
+			}
+			try {
+				String key = KEY_USER_SHOW_ZSET + uid;
+				//遍历普通帖
+				Set<String> showIdsNormal = oldRedisMap.get(JedisClusterCRC16.getCRC16(key) % 16384).zrange(key, 0, -1);
+				if (showIdsNormal != null && showIdsNormal.size() > 0) {
+					for (String showId : showIdsNormal) {
+						Set<Tuple> tuplesPraise = getOldRedis(KEY_SHOW_PRAISE_SET + showId).zrangeWithScores(
+								KEY_SHOW_PRAISE_SET + showId, 0, -1);
+						if (tuplesPraise != null && tuplesPraise.size() > 0) {
+							for (Tuple t : tuplesPraise) {
+								String praiseUserId = t.getElement();
+								double praiseTime = t.getScore();
+								cluster.zadd(KEY_SHOW_PRAISE_SET + showId, praiseTime, praiseUserId);
+							}
+						}
+					}
+				}
+
+				//遍历视频帖
+				Set<String> showIdsVideo = getOldRedis(KEY_USER_SHOW_VIDEO_ZSET + uid).zrange(
+						KEY_USER_SHOW_VIDEO_ZSET + uid, 0, -1);
+				if (showIdsVideo != null && showIdsVideo.size() > 0) {
+					for (String showId : showIdsVideo) {
+						Set<Tuple> tuplesPraise = getOldRedis(KEY_SHOW_PRAISE_SET + showId).zrangeWithScores(
+								KEY_SHOW_PRAISE_SET + showId, 0, -1);
+						if (tuplesPraise != null && tuplesPraise.size() > 0) {
+							for (Tuple t : tuplesPraise) {
+								String praiseUserId = t.getElement();
+								double praiseTime = t.getScore();
+								cluster.zadd(KEY_SHOW_PRAISE_SET + showId, praiseTime, praiseUserId);
+							}
+						}
+					}
+				}
+
+				//遍历专栏帖
+				Set<String> showIdsCounsel = getOldRedis(KEY_USER_COUNSEL_SHOW_ZSET + uid).zrange(
+						KEY_USER_COUNSEL_SHOW_ZSET + uid, 0, -1);
+				if (showIdsCounsel != null && showIdsCounsel.size() > 0) {
+					for (String showId : showIdsCounsel) {
+						Set<Tuple> tuplesPraise = getOldRedis(KEY_SHOW_PRAISE_SET + showId).zrangeWithScores(
+								KEY_SHOW_PRAISE_SET + showId, 0, -1);
+						if (tuplesPraise != null && tuplesPraise.size() > 0) {
+							for (Tuple t : tuplesPraise) {
+								String praiseUserId = t.getElement();
+								double praiseTime = t.getScore();
+								cluster.zadd(KEY_SHOW_PRAISE_SET + showId, praiseTime, praiseUserId);
+							}
+						}
+					}
+				}
+			} catch (Exception e) {
+				System.out.println("程序出现异常！当前uid:" + uid + ",异常信息：" + e.getMessage());
+			}
+		}
+	}
+
+	static Map<Integer, String> oldRedisSlot2Host = new HashMap<Integer, String>();
+	static Map<Integer, Jedis> oldRedisMap = new HashMap<Integer, Jedis>();
+	static {
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(SystemConf.confFileDir + "/oldRedisSlot2Host.txt"));
+			String data;
+			//10.0.228.31:29006#5243-5897
+			while ((data = br.readLine()) != null) {
+				String[] info = data.split(":");
+				if (info.length == 3) {
+					String host = info[0];
+					Integer port = Integer.valueOf(info[1]);
+					Jedis jedis = new Jedis(host, port);
+
+					String[] soltInfo = info[2].split("-");
+					int begin = Integer.valueOf(soltInfo[0]);
+					int end = Integer.valueOf(soltInfo[1]);
+					for (int i = begin; i <= end; i++) {
+						oldRedisMap.put(i, jedis);
+					}
+				}
+			}
+			br.close();
+		} catch (Exception e) {
+		}
+	}
+
+	private void restoreUserHash(String uids) {
+		String[] uidsArray = uids.split(",");
+		for (String uid : uidsArray) {
+			if (uid.length() == 0) {//无效果的uid
+				continue;
+			}
+
+			String key = "u_" + uid;
+			int slot = JedisClusterCRC16.getCRC16(key) % 16384;
+			Jedis oldJedis = oldRedisMap.get(slot);
+			Map<String, String> oldData = oldJedis.hgetAll(key);//这是之前的老数据
+			if (oldData != null) {
+				Map<String, String> newData = cluster.hgetAll(key);//这是当前的数据
+				restoreUserHashSetData(key, "copper", oldData, newData);//恢复铜币
+				restoreUserHashSetData(key, "gold", oldData, newData);//恢复金币
+				restoreUserHashSetData(key, "live_empirical_value", oldData, newData);//恢复直播经验值
+				restoreUserHashSetData(key, "praise_count", oldData, newData);//恢复点赞数
+
+				//恢复vip
+				String oldVip = oldData.get("vip");
+				String newVip = newData.get("vip");
+				if (null != newVip || "0".equals(newVip)) {
+					if (oldVip != null && !"".equals(oldVip) && !"0".equals(oldVip)) {
+						Map<String, String> userHash = new HashMap<String, String>();
+						userHash.put("vip", oldVip);
+						cluster.hmset(key, userHash);
+					}
+				}
+				//恢复认证信息
+				String oldRecommend_desc = oldData.get("recommend_desc");
+				String newRecommend_desc = newData.get("recommend_desc");
+				if (null == newRecommend_desc || newRecommend_desc.length() == 0) {
+					if (oldRecommend_desc != null && oldRecommend_desc.length() > 0) {
+						Map<String, String> userHash = new HashMap<String, String>();
+						userHash.put("recommend_desc", oldRecommend_desc);
+						cluster.hmset(key, userHash);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * 根据老数据和新数据，设置最终的数据，主要是针对铜币、金币、经验值和点赞数
+	 */
+	private void restoreUserHashSetData(String key, String propertyName, Map<String, String> oldData,
+			Map<String, String> newData) {
+		String propertyOldData = oldData.get(propertyName);
+		if (propertyOldData != null && !"".equals(propertyOldData)) {
+			String properNewData = newData.get(propertyName);
+			long total = Long.valueOf(propertyOldData);
+			if (properNewData != null && !"".equals(properNewData)) {
+				total += Long.valueOf(properNewData);
+			}
+			Map<String, String> userHash = new HashMap<String, String>();
+			userHash.put(propertyName, total + "");
+			cluster.hmset(key, userHash);
 		}
 	}
 }
