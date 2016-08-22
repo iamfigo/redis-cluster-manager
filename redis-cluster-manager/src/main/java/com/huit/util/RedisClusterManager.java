@@ -4240,6 +4240,7 @@ public class RedisClusterManager {
 					host = info[0];
 					port = Integer.valueOf(info[1]);
 					Jedis jedis = new Jedis(host, port);
+					jedis.info();//测试一下是否可通知
 
 					String[] soltInfo = info[2].split("-");
 					int begin = Integer.valueOf(soltInfo[0]);
@@ -4252,7 +4253,7 @@ public class RedisClusterManager {
 			br.close();
 		} catch (Exception e) {
 			e.printStackTrace();
-			System.out.println("host:" + host + " port:" + port);
+			System.out.println("nodeError host:" + host + " port:" + port);
 		}
 	}
 
