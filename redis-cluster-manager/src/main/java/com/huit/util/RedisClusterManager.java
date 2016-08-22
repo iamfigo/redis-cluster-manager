@@ -4230,6 +4230,8 @@ public class RedisClusterManager {
 	static Map<Integer, String> oldRedisSlot2Host = new HashMap<Integer, String>();
 	static Map<Integer, Jedis> oldRedisMap = new HashMap<Integer, Jedis>();
 	static {
+		String host = null;
+		Integer port = null;
 		try {
 			BufferedReader br = new BufferedReader(new FileReader(SystemConf.confFileDir + "/oldRedisSlot2Host.txt"));
 			String data;
@@ -4237,8 +4239,8 @@ public class RedisClusterManager {
 			while ((data = br.readLine()) != null) {
 				String[] info = data.split(":");
 				if (info.length == 3) {
-					String host = info[0];
-					Integer port = Integer.valueOf(info[1]);
+					host = info[0];
+					port = Integer.valueOf(info[1]);
 					Jedis jedis = new Jedis(host, port);
 
 					String[] soltInfo = info[2].split("-");
@@ -4251,6 +4253,8 @@ public class RedisClusterManager {
 			}
 			br.close();
 		} catch (Exception e) {
+			e.printStackTrace();
+			System.out.println("host:" + host + " port:" + port);
 		}
 	}
 
