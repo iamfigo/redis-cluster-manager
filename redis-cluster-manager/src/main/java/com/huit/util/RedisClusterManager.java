@@ -4134,7 +4134,6 @@ public class RedisClusterManager {
 						cluster.zadd(KEY_USER_FANS_ZSET + attentionUid, score, uid);//加入被关注人的粉丝队列
 					}
 				}
-				oldJedis.close();
 
 				//恢复粉丝
 				String keyFans = KEY_USER_FANS_ZSET + uid;//此用户的粉丝队列
@@ -4149,7 +4148,6 @@ public class RedisClusterManager {
 						cluster.zadd(KEY_USER_ATTENTION_ZSET + fansUid, score, uid);//加入粉丝的关注队列
 					}
 				}
-				oldJedis2222.close();
 			} catch (Exception e) {
 				System.out.println("followRestoreByUids 异常，当前uid:" + uid);
 				e.printStackTrace();
