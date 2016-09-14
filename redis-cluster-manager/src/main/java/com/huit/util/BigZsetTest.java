@@ -15,7 +15,7 @@ import redis.clients.jedis.JedisPoolConfig;
  * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.BigZsetTest count=100000 offset=0 isDel=false
  * PC机上zset验证结果：0-100W totalSpeed:20,771.45, 100-200W totalSpeed:20,293.03 200-300W totalSpeed:20,789.16
  * 41,592.15 TestOnBorrow=false TestOnReturn=false
- * 26,980.36 TestOnBorrow=true 54%
+ * 26,980.36 TestOnBorrow=true 54.16%
  * 25,599.02 TestOnReturn=true 62.48%
  * 19,196.81 TestOnBorrow=true TestOnReturn=true 116.67%
  * @author huit
