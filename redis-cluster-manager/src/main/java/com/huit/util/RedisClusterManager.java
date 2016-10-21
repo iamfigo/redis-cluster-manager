@@ -4134,7 +4134,6 @@ public class RedisClusterManager {
 						cluster.zadd(KEY_USER_FANS_ZSET + attentionUid, score, uid);//加入被关注人的粉丝队列
 					}
 				}
-				oldJedis.close();
 
 				//恢复粉丝
 				String keyFans = KEY_USER_FANS_ZSET + uid;//此用户的粉丝队列
@@ -4149,7 +4148,6 @@ public class RedisClusterManager {
 						cluster.zadd(KEY_USER_ATTENTION_ZSET + fansUid, score, uid);//加入粉丝的关注队列
 					}
 				}
-				oldJedis2222.close();
 			} catch (Exception e) {
 				System.out.println("followRestoreByUids 异常，当前uid:" + uid);
 				e.printStackTrace();
@@ -4230,6 +4228,8 @@ public class RedisClusterManager {
 	static Map<Integer, String> oldRedisSlot2Host = new HashMap<Integer, String>();
 	static Map<Integer, Jedis> oldRedisMap = new HashMap<Integer, Jedis>();
 	static {
+		String host = null;
+		Integer port = null;
 		try {
 			BufferedReader br = new BufferedReader(new FileReader(SystemConf.confFileDir + "/oldRedisSlot2Host.txt"));
 			String data;
@@ -4237,9 +4237,10 @@ public class RedisClusterManager {
 			while ((data = br.readLine()) != null) {
 				String[] info = data.split(":");
 				if (info.length == 3) {
-					String host = info[0];
-					Integer port = Integer.valueOf(info[1]);
+					host = info[0];
+					port = Integer.valueOf(info[1]);
 					Jedis jedis = new Jedis(host, port);
+					jedis.info();//测试一下是否可通知
 
 					String[] soltInfo = info[2].split("-");
 					int begin = Integer.valueOf(soltInfo[0]);
@@ -4251,6 +4252,8 @@ public class RedisClusterManager {
 			}
 			br.close();
 		} catch (Exception e) {
+			e.printStackTrace();
+			System.out.println("nodeError host:" + host + " port:" + port);
 		}
 	}
 
