@@ -37,8 +37,10 @@ public class MonitorUtil {
 	public static void main(String[] args) throws Exception {
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.1.29.41 keyStat=false isCmdDetail=false".split(" ");
-		args = "filePath=D:/redislog/  cmdFilter=ZREVRANGE keyStat=false isCmdDetail=true showTop=10".split(" ");
-		//args = "filePath=D:/redislog/ ipFilter=10.0.238.18 cmdFilter=ZREVRANGE cmdDetailPrint=true".split(" ");
+		//args = "filePath=D:/redislog/  keyStat=false isCmdDetail=true showTop=10".split(" ");
+		args = "filePath=D:/redislog/ cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000".split(" ");
+		//args = "filePath=D:/redislog/  cmdFilter=ZREVRANGE keyStat=false isCmdDetail=true showTop=10".split(" ");
+		//args = "filePath=D:/redislog/ ipFilter=10.0.238.18 isCmdDetail=true".split(" ");
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log ipFilter=10.0.238.18".split(" ");
 		AtomicLong timeBegin, timeEnd;
 		for (String arg : args) {

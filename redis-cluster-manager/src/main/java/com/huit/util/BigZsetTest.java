@@ -36,14 +36,14 @@ public class BigZsetTest {
 		poolConfig.setMaxIdle(10);
 		poolConfig.setMinIdle(1);
 		poolConfig.setMaxWaitMillis(30000);
-		poolConfig.setTestOnBorrow(true);
-		poolConfig.setTestOnReturn(true);
+		//poolConfig.setTestOnBorrow(true);
+		//poolConfig.setTestOnReturn(true);
 		poolConfig.setTestWhileIdle(true);
 		cluster = new JedisCluster(nodes, DEFAULT_TIMEOUT, MAX_REDIRECTIONS, poolConfig);
 	}
 
-	private static int offset = 0;//offset
-	private static int count = 100000;//测试数据容量
+	private static int offset = 1000000;//offset
+	private static int count = 11000000;//测试数据容量，1000W
 	private static boolean isDel = true;//是否删除
 
 	public static void main(String[] args) {
@@ -63,8 +63,8 @@ public class BigZsetTest {
 			}
 		}
 
-		Statistics.start();
 		List<Thread> exportTheadList = new ArrayList<Thread>();
+		Statistics.start();
 		for (int i = 0; i < THREAD_NUM; i++) {
 			Thread thread = new Thread(new Runnable() {
 				@Override
