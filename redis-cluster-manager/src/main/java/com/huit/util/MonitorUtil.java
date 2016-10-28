@@ -18,8 +18,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisMonitor;
+
 /**
- * java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil D:/monitor_redis_20161018093402.log
+ * java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5
  * 
  * @author huit
  *
@@ -31,22 +34,25 @@ public class MonitorUtil {
 	static Map<String, AtomicLong> keyStat = new HashMap<String, AtomicLong>();
 	static List<String> cmdList = new ArrayList<String>();
 	static boolean isCmdDetail = false, isKeyStat;
-	static int showTop = 10;
-	static String filePath = "", ipFilter = "", cmdFilter = "";
+	static int showTop = 10, port;
+	static String filePath = "", ipFilter = "", cmdFilter = "", host = "";
+	static long monitorTime = 0;
 
 	public static void main(String[] args) throws Exception {
+		String helpInfo = "java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5";
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.1.29.41 keyStat=false isCmdDetail=false".split(" ");
 		//args = "filePath=D:/redislog/  keyStat=false isCmdDetail=true showTop=10".split(" ");
-		args = "filePath=D:/redislog/ cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000".split(" ");
+		//args = "filePath=D:/redislog/ cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000".split(" ");
 		//args = "filePath=D:/redislog/  cmdFilter=ZREVRANGE keyStat=false isCmdDetail=true showTop=10".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.0.238.18 isCmdDetail=true".split(" ");
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log ipFilter=10.0.238.18".split(" ");
-		AtomicLong timeBegin, timeEnd;
+		//args = helpInfo.split(" ");
 		for (String arg : args) {
+			if (arg.split("=").length != 2) {
+				continue;
+			}
 			if (arg.startsWith("filePath=")) {
-				filePath = arg.split("=")[1];
-			} else if (arg.startsWith("time=")) {
 				filePath = arg.split("=")[1];
 			} else if (arg.startsWith("ipFilter=")) {
 				ipFilter = arg.split("=")[1];
@@ -58,10 +64,25 @@ public class MonitorUtil {
 				isKeyStat = Boolean.valueOf(arg.split("=")[1]);
 			} else if (arg.startsWith("showTop=")) {
 				showTop = Integer.valueOf(arg.split("=")[1]);
+			} else if (arg.startsWith("host=")) {
+				host = arg.split("=")[1];
+			} else if (arg.startsWith("port=")) {
+				port = Integer.valueOf(arg.split("=")[1]);
+			} else if (arg.startsWith("monitorTime=")) {
+				monitorTime = Long.valueOf(arg.split("=")[1]) * 1000;
+			} else {
+				System.out.println(helpInfo);
+				System.exit(0);
 			}
 		}
 		System.out.println("filePath=" + filePath + " ipFilter=" + ipFilter + " cmdFilter=" + cmdFilter + " isKeyStat="
 				+ isKeyStat + " isCmdDetail=" + isCmdDetail);
+
+		if (monitorTime > 0 && port > 0) {
+			onlineMonitor();
+		} else {
+
+		}
 
 		File dir = new File(filePath);
 		if (dir.isDirectory()) {
@@ -71,14 +92,44 @@ public class MonitorUtil {
 		} else if (dir.isFile()) {
 			loadData(dir);
 		}
+		printStat();
+	}
 
+	public static void onlineMonitor() {
+		@SuppressWarnings("resource")
+		Jedis jedis = new Jedis(host, Integer.valueOf(port));
+		JedisMonitor monitor = new JedisMonitor() {
+			@Override
+			public void onCommand(String command) {
+				parseData(command);
+			}
+		};
+
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					Thread.sleep(monitorTime);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				} finally {
+					printStat();
+					System.exit(0);
+				}
+			}
+
+		}, "monitorTimer").start();
+		jedis.monitor(monitor);
+	}
+
+	public static void printStat() {
 		if ("".equals(cmdFilter)) {
-			printStat(cmdStat);
+			printStatMap(cmdStat);
 		}
 		if ("".equals(ipFilter)) {
-			printStat(hostStat);
+			printStatMap(hostStat);
 		}
-		printStat(keyStat);
+		printStatMap(keyStat);
 		if (!cmdList.isEmpty()) {
 			int showCount = 0;
 			for (String cmdInfo : cmdList) {
@@ -91,54 +142,58 @@ public class MonitorUtil {
 		}
 	}
 
+	public static void parseData(String data) {
+		if ("OK".equals(data)) {
+			return;
+		}
+		int hostBegin = data.indexOf("[");
+		int hostEnd = data.indexOf("]");
+
+		double time;
+		String clientIp = null;
+		String clientIpPort;
+		String cmdDetail = null;
+		String[] cmdInfo = null;
+		if (hostBegin > 0 && hostBegin > 0) {
+			time = Double.valueOf(data.substring(0, hostBegin));
+			clientIpPort = data.substring(hostBegin + 1, hostEnd).split(" ")[1];
+			clientIp = clientIpPort.split(":")[0];
+			cmdDetail = data.substring(hostEnd + 2);
+			cmdInfo = cmdDetail.split(" ");
+		}
+
+		if (null != ipFilter && !clientIp.startsWith(ipFilter)) {
+			return;//只统计指定主机
+		}
+
+		if (cmdInfo.length >= 1) {
+			String key = cmdInfo[0].replace("\"", "");
+			if (null != cmdFilter && !key.startsWith(cmdFilter)) {
+				return;//只统计指定命令
+			}
+
+			cmdTotal++;
+
+			if (isKeyStat) {
+				addstat(keyStat, cmdInfo[1]);
+			}
+			if (isCmdDetail) {
+				cmdList.add(cmdDetail);
+			}
+			addstat(cmdStat, key);
+			addstat(hostStat, clientIp);
+		} else {
+			System.out.println();
+		}
+	}
+
 	public static void loadData(File file) throws IOException, FileNotFoundException {
 		String data = null, key = null;
 		//1476754442.972956 [0 10.0.238.18:9131] "PING"
 		BufferedWriter bw = new BufferedWriter(new FileWriter(file + ".stat"));
 		BufferedReader br = new BufferedReader(new FileReader(file));
 		while ((data = br.readLine()) != null) {
-			if ("OK".equals(data)) {
-				continue;
-			}
-			int hostBegin = data.indexOf("[");
-			int hostEnd = data.indexOf("]");
-
-			double time;
-			String clientIp = null;
-			String clientIpPort;
-			String cmdDetail = null;
-			String[] cmdInfo = null;
-			if (hostBegin > 0 && hostBegin > 0) {
-				time = Double.valueOf(data.substring(0, hostBegin));
-				clientIpPort = data.substring(hostBegin + 1, hostEnd).split(" ")[1];
-				clientIp = clientIpPort.split(":")[0];
-				cmdDetail = data.substring(hostEnd + 2);
-				cmdInfo = cmdDetail.split(" ");
-			}
-
-			if (null != ipFilter && !clientIp.startsWith(ipFilter)) {
-				continue;//只统计指定主机
-			}
-
-			if (cmdInfo.length >= 1) {
-				key = cmdInfo[0].replace("\"", "");
-				if (null != cmdFilter && !key.startsWith(cmdFilter)) {
-					continue;//只统计指定命令
-				}
-
-				cmdTotal++;
-
-				if (isKeyStat) {
-					addstat(keyStat, cmdInfo[1]);
-				}
-				if (isCmdDetail) {
-					cmdList.add(cmdDetail);
-				}
-				addstat(cmdStat, key);
-				addstat(hostStat, clientIp);
-			} else {
-				System.out.println();
-			}
+			parseData(data);
 		}
 		bw.close();
 		br.close();
@@ -153,7 +208,7 @@ public class MonitorUtil {
 		count.incrementAndGet();
 	}
 
-	public static void printStat(Map<String, AtomicLong> cmdStat) {
+	public static void printStatMap(Map<String, AtomicLong> cmdStat) {
 		if (cmdStat.isEmpty()) {
 			return;
 		}
