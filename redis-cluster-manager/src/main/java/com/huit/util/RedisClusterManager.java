@@ -2515,6 +2515,8 @@ public class RedisClusterManager {
 		//		args = new String[] { "add-master", "172.20.16.87:29000", "172.20.16.88:29000", "172.20.16.89:29000" };
 		//		args = new String[] { "add-master", "172.20.16.87:29000", "172.20.16.88:29000" };
 		//args = new String[] { "add-master", "172.20.16.87:29005" };
+//		args = new String[] { "analyze", "isKeyStat=true", "isCmdDetail=true", "showTop=20", "host=172.20.16.48",
+//				"port=5001", "monitorTime=5" };
 		//args = new String[] { "add-slave","172.20.16.87:29000->172.20.16.88:29000;172.20.16.87:29001->172.20.16.88:29001" };
 		//args = new String[] { "add-slave","172.20.16.87:29001->172.20.16.88:29001" };
 		//args = new String[] { "add-node", "172.20.16.91:29010", "172.20.16.89:29010" };
@@ -2558,14 +2560,19 @@ public class RedisClusterManager {
 		Runtime.getRuntime().addShutdownHook(new CleanWorkThread());
 		RedisClusterManager rcm = new RedisClusterManager();
 		long beginTime = System.currentTimeMillis();
+		if (args.length == 0) {
+			printHelp();
+			return;
+		}
 
-		if ("raminfo".equals(args[0]) || "exporth".equals(args[0]) || "exportHostKeys".equals(args[0])) {
+		String cmd = args[0];
+		if ("raminfo".equals(cmd) || "exporth".equals(cmd) || "exportHostKeys".equals(cmd)) {
 		} else {
 			connectCluser();
 		}
 
 		if (args.length > 0) {
-			if ("add-slave".equals(args[0])) {
+			if ("add-slave".equals(cmd)) {
 				if (args.length == 2) {
 					String[] master2slave = trim(args[1]).split(";");
 					for (int i = 0; i < master2slave.length; i++) {
@@ -2581,82 +2588,84 @@ public class RedisClusterManager {
 				} else {
 					System.out.println("请输入主备关系：host1:port1->host2:port1;host1:port2->host2:port2;");
 				}
-			} else if ("bakup-node".equals(args[0])) {
+			} else if ("bakup-node".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.bakupNode(args[1]);
 				} else {
 					System.out.println("参数错误！");
 				}
-			} else if ("fansCount".equals(args[0])) {
+			} else if ("analyze".equals(cmd)) {
+				MonitorUtil.main(args);
+			} else if ("fansCount".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.fansCount(args[1]);
 				} else {
 					System.out.println("fansCount D:/export.dat");
 				}
-			} else if ("exportHostKeys".equals(args[0])) {
+			} else if ("exportHostKeys".equals(cmd)) {
 				if (args.length == 5) {
 					rcm.exportHostKeys(args[1], args[2], args[3], args[4]);
 				} else {
 					System.out.println("exportHostKeys ip port key1,key2 D:/export.dat");
 				}
-			} else if ("followDel".equals(args[0])) {
+			} else if ("followDel".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.followDel(args[1], args[2]);
 				} else {
 					System.out.println("followDel D:/u_f_uid_delete.dat");
 				}
-			} else if ("followAttentionDel".equals(args[0])) {
+			} else if ("followAttentionDel".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.followAttentionDel(args[1], args[2]);
 				} else {
 					System.out.println("followAttentionDel D:/u_a_uid_delete.dat");
 				}
-			} else if ("followRestore".equals(args[0])) {
+			} else if ("followRestore".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.followRestore(args[1], args[2]);
 				} else {
 					System.out.println("followRestore D:/29000-u_f.dat");
 				}
-			} else if ("praiseDel".equals(args[0])) {
+			} else if ("praiseDel".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.praiseDel(args[1], args[2]);
 				} else {
 					System.out.println("praiseDel D:/input.dat");
 				}
-			} else if ("praiseCountDel".equals(args[0])) {
+			} else if ("praiseCountDel".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.praiseCountDel(args[1], args[2]);
 				} else {
 					System.out.println("praiseCountDel D:/input.dat");
 				}
-			} else if ("praiseCount".equals(args[0])) {
+			} else if ("praiseCount".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.praiseCount(args[1], args[2]);
 				} else {
 					System.out.println("praiseCount D:/export.dat");
 				}
-			} else if ("uaCheck".equals(args[0])) {
+			} else if ("uaCheck".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.uaCheck(args[1]);
 				} else {
 					System.out.println("fansCheck D:/export.dat");
 				}
-			} else if ("ufCheck".equals(args[0])) {
+			} else if ("ufCheck".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.ufCheck(args[1]);
 				} else {
 					System.out.println("fansCheck D:/export.dat");
 				}
-			} else if ("raminfo".equals(args[0])) {
+			} else if ("raminfo".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.raminfo(args[1]);
 				} else {
 					connectCluser();
 					rcm.raminfo(null);
 				}
-			} else if ("rubbish-del".equals(args[0])) {
+			} else if ("rubbish-del".equals(cmd)) {
 				rcm.rubbishH5Del();
-			} else if ("create".equals(args[0])) {
+			} else if ("create".equals(cmd)) {
 				StringBuffer sb = new StringBuffer();
 				for (int i = 1; i < args.length; i++) {
 					sb.append(args[i]);
@@ -2667,24 +2676,24 @@ public class RedisClusterManager {
 				rcm.create(rcm, master2slave);
 				Thread.sleep(3000);//等待集群配置同步
 				rcm.check();
-			} else if ("reshard".equals(args[0])) {
+			} else if ("reshard".equals(cmd)) {
 				rcm.reshard(args);
-			} else if ("failover".equals(args[0])) {
+			} else if ("failover".equals(cmd)) {
 				String[] slaves = trim(args[1]).split(";");
 				for (String slave : slaves) {
 					rcm.failOver(slave);
 				}
 				Thread.sleep(3000);//等待集群配置同步
 				rcm.check();
-			} else if ("fix-slot-cover".equals(args[0])) {
+			} else if ("fix-slot-cover".equals(cmd)) {
 				rcm.fixSlotCover(args[1]);
 				Thread.sleep(3000);//等待集群配置同步
 				rcm.check();
-			} else if ("fix-slot-stable".equals(args[0])) {
+			} else if ("fix-slot-stable".equals(cmd)) {
 				rcm.fixSlotStable();
 				Thread.sleep(3000);//等待集群配置同步
 				rcm.check();
-			} else if ("add-master".equals(args[0])) {
+			} else if ("add-master".equals(cmd)) {
 				if (args.length >= 2) {
 					rcm.addMaster(args);
 					Thread.sleep(3000);//等待集群配置同步
@@ -2692,13 +2701,13 @@ public class RedisClusterManager {
 				} else {
 					System.out.println("请输入要添加的 主节点");
 				}
-			} else if ("dels".equals(args[0])) {
+			} else if ("dels".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.dels(args[1], args[2]);
 				} else {
 					System.out.println("dels keyPattern D:/delKey.dat");
 				}
-			} else if ("counts".equals(args[0])) {
+			} else if ("counts".equals(cmd)) {
 				if (args.length == 1) {
 					System.out.println("请输入要统计的key前缀");
 				} else {
@@ -2706,7 +2715,7 @@ public class RedisClusterManager {
 						rcm.countKeyLike(args[i]);
 					}
 				}
-			} else if ("del-node".equals(args[0])) {
+			} else if ("del-node".equals(cmd)) {
 				if (args.length == 2) {
 					String[] hostsInfo = trim(args[1]).split(";");
 					for (int i = 0; i < hostsInfo.length; i++) {
@@ -2717,7 +2726,7 @@ public class RedisClusterManager {
 				} else {
 					System.out.println("请输入要删除的节点:host1:port1;host2:port2;");
 				}
-			} else if ("querys".equals(args[0])) {
+			} else if ("querys".equals(cmd)) {
 				if (args.length == 1) {
 					rcm.queryKeyLike("");
 				} else {
@@ -2725,81 +2734,81 @@ public class RedisClusterManager {
 						rcm.queryKeyLike(args[i]);
 					}
 				}
-			} else if ("export".equals(args[0])) {
+			} else if ("export".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.exportKeyPre(args[1], args[2]);
 				} else {
 					System.out.println("export keyPattern D:/export.dat");
 				}
-			} else if ("exporth".equals(args[0])) {
+			} else if ("exporth".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.exportKeyOneHost(args[1], args[2]);
 				} else {
 					System.out.println("export keyPattern D:/export.dat");
 				}
-			} else if ("export-keys".equals(args[0])) {
+			} else if ("export-keys".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.exportKeys(args[1], args[2]);
 				} else {
 					System.out.println("export keys D:/export.dat");
 				}
-			} else if ("export-keys-file".equals(args[0])) {
+			} else if ("export-keys-file".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.exportKeysFile(args[1], args[2]);
 				} else {
 					System.out.println("export keys D:/export.dat");
 				}
-			} else if ("import".equals(args[0])) {
+			} else if ("import".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.importKey(args[1], args[2]);
 				} else {
 					System.out.println("import keyPattern D:/import.dat");
 				}
-			} else if ("import-mongodb".equals(args[0])) {
+			} else if ("import-mongodb".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.importMongodb(args[1], args[2]);
 				} else {
 					System.out.println("import keyPattern D:/import.dat");
 				}
-			} else if ("restoreUserHash".equals(args[0])) {
+			} else if ("restoreUserHash".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.restoreUserHash(args[1]);
 				} else {
 					System.out.println("restoreUserHash uid1,uid2");
 				}
-			} else if ("restoreShowPraise".equals(args[0])) {
+			} else if ("restoreShowPraise".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.restoreShowPraise(args[1]);
 				} else {
 					System.out.println("restoreUserHash uid1,uid2");
 				}
-			} else if ("followRestoreByUids".equals(args[0])) {
+			} else if ("followRestoreByUids".equals(cmd)) {
 				if (args.length == 2) {
 					rcm.followRestoreByUids(args[1]);
 				} else {
 					System.out.println("followRestoreByUids uid1,uid2");
 				}
-			} else if ("set".equals(args[0]) || "del".equals(args[0])) {
+			} else if ("set".equals(cmd) || "del".equals(cmd)) {
 				rcm.opt(args);
-			} else if ("get".equals(args[0])) {
+			} else if ("get".equals(cmd)) {
 				rcm.opt(args);
-			} else if ("keys".equals(args[0])) {
+			} else if ("keys".equals(cmd)) {
 				if (args.length == 1) {
 					System.out.println("请输入要查詢的key前缀");
 				} else {
 					rcm.keys(args[1]);
 				}
-			} else if ("keysize".equals(args[0])) {
+			} else if ("keysize".equals(cmd)) {
 				rcm.keySize();
-			} else if ("key-size-count".equals(args[0])) {
+			} else if ("key-size-count".equals(cmd)) {
 				if (args.length == 3) {
 					rcm.keySizeCount(args[1], args[2]);
 				} else {
 					System.out.println("key-size-count u_id_set D:/");
 				}
-			} else if ("info".equals(args[0])) {
+			} else if ("info".equals(cmd)) {
 				rcm.info(args);
-			} else if ("monitor".equals(args[0])) {
+			} else if ("monitor".equals(cmd)) {
 				long sleepTime = 1000;
 				if (args.length == 2) {
 					sleepTime = Long.valueOf(args[1]) * 1000;
@@ -2812,11 +2821,11 @@ public class RedisClusterManager {
 					}
 					Thread.sleep(sleepTime);
 				}
-			} else if ("check".equals(args[0])) {
+			} else if ("check".equals(cmd)) {
 				rcm.check();
-			} else if ("flush".equals(args[0])) {
+			} else if ("flush".equals(cmd)) {
 				rcm.flushall();
-			} else if ("h".equals(args[0]) || "-h".equals(args[0]) || "help".equals(args[0])) {
+			} else if ("h".equals(cmd) || "-h".equals(cmd) || "help".equals(cmd)) {
 				printHelp();
 			} else {
 				Jedis jedis = new Jedis(REDIS_HOST, REDIS_PORT);
@@ -2843,7 +2852,7 @@ public class RedisClusterManager {
 				String hostPort = slot2Host.get(slot);
 				if (null != hostPort) {
 					hostInfo = hostPort.split(":");
-					String cmd = "redis-cli -h " + hostInfo[0] + " -p " + hostInfo[1];
+					cmd = "redis-cli -h " + hostInfo[0] + " -p " + hostInfo[1];
 					for (int i = 0; i < args.length; i++) {
 						cmd = cmd + " " + args[i];
 					}
@@ -3590,6 +3599,7 @@ public class RedisClusterManager {
 		System.out.println("java -jar redis-cluster-util-jar-with-dependencies.jar arg1 arg2 ...");
 		System.out.println("add-master \t:[host:port;host2:port2]add master list");
 		System.out.println("add-slave \t:[maser->slave;master2->slave2;...]master->slave");
+		System.out.println("analyze \t:" + MonitorUtil.helpInfo);
 		System.out.println("bakup-node \t:[file path]file path to save");
 		System.out
 				.println("benchmark  \t:java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.Benchmark key value offset limit threadCount [all|set|get]");
@@ -4231,26 +4241,29 @@ public class RedisClusterManager {
 		String host = null;
 		Integer port = null;
 		try {
-			BufferedReader br = new BufferedReader(new FileReader(SystemConf.confFileDir + "/oldRedisSlot2Host.txt"));
-			String data;
-			//10.0.228.31:29006#5243-5897
-			while ((data = br.readLine()) != null) {
-				String[] info = data.split(":");
-				if (info.length == 3) {
-					host = info[0];
-					port = Integer.valueOf(info[1]);
-					Jedis jedis = new Jedis(host, port);
-					jedis.info();//测试一下是否可通知
+			File file = new File(SystemConf.confFileDir + "/oldRedisSlot2Host.txt");
+			if (file.isFile()) {
+				BufferedReader br = new BufferedReader(new FileReader(file));
+				String data;
+				//10.0.228.31:29006#5243-5897
+				while ((data = br.readLine()) != null) {
+					String[] info = data.split(":");
+					if (info.length == 3) {
+						host = info[0];
+						port = Integer.valueOf(info[1]);
+						Jedis jedis = new Jedis(host, port);
+						jedis.info();//测试一下是否可通知
 
-					String[] soltInfo = info[2].split("-");
-					int begin = Integer.valueOf(soltInfo[0]);
-					int end = Integer.valueOf(soltInfo[1]);
-					for (int i = begin; i <= end; i++) {
-						oldRedisMap.put(i, jedis);
+						String[] soltInfo = info[2].split("-");
+						int begin = Integer.valueOf(soltInfo[0]);
+						int end = Integer.valueOf(soltInfo[1]);
+						for (int i = begin; i <= end; i++) {
+							oldRedisMap.put(i, jedis);
+						}
 					}
 				}
+				br.close();
 			}
-			br.close();
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println("nodeError host:" + host + " port:" + port);

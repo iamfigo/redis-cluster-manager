@@ -34,12 +34,12 @@ public class MonitorUtil {
 	static Map<String, AtomicLong> keyStat = new HashMap<String, AtomicLong>();
 	static List<String> cmdList = new ArrayList<String>();
 	static boolean isCmdDetail = false, isKeyStat;
-	static int showTop = 10, port;
-	static String filePath = "", ipFilter = "", cmdFilter = "", host = "";
+	static int showTop = 10, port = SystemConf.get("REDIS_PORT", Integer.class);
+	static String filePath = "", ipFilter = "", cmdFilter = "", host = SystemConf.get("REDIS_HOST");
 	static long monitorTime = 0;
+	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5";
 
 	public static void main(String[] args) throws Exception {
-		String helpInfo = "java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5";
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.1.29.41 keyStat=false isCmdDetail=false".split(" ");
 		//args = "filePath=D:/redislog/  keyStat=false isCmdDetail=true showTop=10".split(" ");
@@ -81,18 +81,18 @@ public class MonitorUtil {
 		if (monitorTime > 0 && port > 0) {
 			onlineMonitor();
 		} else {
-
-		}
-
-		File dir = new File(filePath);
-		if (dir.isDirectory()) {
-			for (File file : dir.listFiles()) {
-				loadData(file);
+			long beginTime = System.currentTimeMillis();
+			File dir = new File(filePath);
+			if (dir.isDirectory()) {
+				for (File file : dir.listFiles()) {
+					loadData(file);
+				}
+			} else if (dir.isFile()) {
+				loadData(dir);
 			}
-		} else if (dir.isFile()) {
-			loadData(dir);
+			printStat();
+			System.out.println("useTime:" + (System.currentTimeMillis() - beginTime));
 		}
-		printStat();
 	}
 
 	public static void onlineMonitor() {
@@ -104,7 +104,7 @@ public class MonitorUtil {
 				parseData(command);
 			}
 		};
-
+		final long beginTime = System.currentTimeMillis();
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
@@ -114,6 +114,7 @@ public class MonitorUtil {
 					e.printStackTrace();
 				} finally {
 					printStat();
+					System.out.println("useTime:" + (System.currentTimeMillis() - beginTime));
 					System.exit(0);
 				}
 			}
@@ -174,7 +175,7 @@ public class MonitorUtil {
 
 			cmdTotal++;
 
-			if (isKeyStat) {
+			if (isKeyStat && cmdInfo.length >= 2) {
 				addstat(keyStat, cmdInfo[1]);
 			}
 			if (isCmdDetail) {
