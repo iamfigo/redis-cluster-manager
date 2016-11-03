@@ -83,17 +83,7 @@ public class BigZsetTest {
 			exportTheadList.add(thread);
 			thread.start();
 		}
-		for (Thread thread : exportTheadList) {
-			do {
-				if (thread.isAlive()) {
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-				}
-			} while (thread.isAlive());
-		}
+		RedisClusterManager.waitThread(exportTheadList);
 
 		if (isDel) {
 			cluster.del("bigZSetTest");
