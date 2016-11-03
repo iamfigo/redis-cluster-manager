@@ -121,7 +121,6 @@ public class RedisClusterManager {
 
     /**
      * 按照key前缀查询
-     *
      */
     public void praiseCount(final String importKey, final String filePath) {
         final List<String> dataQueue = Collections.synchronizedList(new LinkedList<String>());// 待处理数据队列
@@ -499,7 +498,6 @@ public class RedisClusterManager {
 
     /**
      * 按照key前缀查询
-     *
      */
     public void importKey(String importKey, final String filePath) {
         final String[] importKeyPre = importKey.split(",");
@@ -989,7 +987,6 @@ public class RedisClusterManager {
 
     /**
      * 按照key前缀查询
-     *
      */
     public void importKey2(final String indexKey, String preKey, final String filePath) {
         final String[] importKeyPre = indexKey.split(",");
@@ -1608,95 +1605,6 @@ public class RedisClusterManager {
                 }
             }
         } while (!"0".equals(hcursor));
-    }
-
-    /**
-     * 按key导出数据
-     */
-    public void exportHostKeys(String keys, String filePath) {
-        for (String key : keys.split(",")) {
-            JSONObject json = new JSONObject();
-            json.put("key", key);
-            String keyType = cluster.type(key);
-            json.put("type", keyType);
-            if ("hash".equals(keyType)) {
-                String hcursor = "0";
-                JSONArray value = new JSONArray();
-                do {
-                    ScanResult<Entry<String, String>> hscanResult = cluster.hscan(key, hcursor, sp);
-                    hcursor = hscanResult.getStringCursor();
-                    for (Entry<String, String> entry : hscanResult.getResult()) {
-                        JSONObject valueData = new JSONObject();
-                        valueData.put("key", entry.getKey());
-                        valueData.put("value", entry.getValue());
-                        value.add(valueData);
-                    }
-                } while (!"0".equals(hcursor));
-                json.put("value", value);
-            } else if ("string".equals(keyType)) {
-                json.put("value", cluster.get(key));
-            } else if ("list".equals(keyType)) {
-                int readSize, readCount = 1;
-                long start = 0, end = start + readCount;
-                JSONArray value = new JSONArray();
-                do {
-                    List<String> data = cluster.lrange(key, start, end);
-                    readSize = data.size();
-                    for (int i = 0; i < readSize; i++) {
-                        value.add(data.get(i));
-                    }
-                    start = end + 1;
-                    end += readSize;
-                } while (readSize == readCount + 1);
-                json.put("value", value);
-            } else if ("set".equals(keyType)) {
-                String scursor = "0";
-                JSONArray value = new JSONArray();
-                do {
-                    ScanResult<String> sscanResult = cluster.sscan(key, scursor, sp);
-                    scursor = sscanResult.getStringCursor();
-                    for (String data : sscanResult.getResult()) {
-                        value.add(data);
-                    }
-                } while (!"0".equals(scursor));
-                json.put("value", value);
-            } else if ("zset".equals(keyType)) {
-                String zcursor = "0";
-                JSONArray value = new JSONArray();
-                do {
-                    ScanResult<Tuple> sscanResult = cluster.zscan(key, zcursor, sp);
-                    zcursor = sscanResult.getStringCursor();
-                    for (Tuple data : sscanResult.getResult()) {
-                        JSONObject dataJson = new JSONObject();
-                        dataJson.put("score", data.getScore());
-                        dataJson.put("value", data.getElement());
-                        value.add(dataJson);
-                    }
-                } while (!"0".equals(zcursor));
-                json.put("value", value);
-            } else {
-                System.out.println("unknow keyType:" + keyType + "key:" + key);
-            }
-            synchronized (this) {//删除多线程里会调用这个方法
-                BufferedWriter bw = null;
-                try {
-                    bw = new BufferedWriter(new FileWriter(filePath, true));
-                    bw.write(json.toJSONString());
-                    bw.write('\r');
-                    bw.write('\n');
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } finally {
-                    try {
-                        if (null != bw) {
-                            bw.close();
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -2370,7 +2278,6 @@ public class RedisClusterManager {
 
     /**
      * 按照key前缀清除缓存
-     *
      */
     public void dels(String keyPre, final String filePath) {
         final String[] exportKeyPre = keyPre.split(",");
