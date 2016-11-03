@@ -1763,6 +1763,8 @@ public class RedisClusterManager {
                     }
                 } while (!"0".equals(zcursor));
                 json.put("value", value);
+            } else if ("none".equals(keyType)) {//已经被其它人删除
+                return true;
             } else {
                 String info = "unknowKeyType:" + keyType + "key:" + key;
                 System.out.println(info);
