@@ -23,9 +23,8 @@ import redis.clients.jedis.JedisMonitor;
 
 /**
  * java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5
- * 
- * @author huit
  *
+ * @author huit
  */
 public class MonitorUtil {
 	static int cmdTotal = 0;
@@ -133,11 +132,13 @@ public class MonitorUtil {
 		printStatMap(keyStat);
 		if (!cmdList.isEmpty()) {
 			int showCount = 0;
-			for (String cmdInfo : cmdList) {
-				System.out.println(cmdInfo);
-				showCount++;
-				if (showCount > showTop) {
-					break;
+			synchronized (cmdList) {
+				for (String cmdInfo : cmdList) {
+					System.out.println(cmdInfo);
+					showCount++;
+					if (showCount > showTop) {
+						break;
+					}
 				}
 			}
 		}
@@ -179,7 +180,9 @@ public class MonitorUtil {
 				addstat(keyStat, cmdInfo[1]);
 			}
 			if (isCmdDetail) {
-				cmdList.add(cmdDetail);
+				synchronized (cmdList) {
+					cmdList.add(cmdDetail);
+				}
 			}
 			addstat(cmdStat, key);
 			addstat(hostStat, clientIp);
