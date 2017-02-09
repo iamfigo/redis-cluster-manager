@@ -3364,7 +3364,9 @@ public class RedisClusterManager {
 		//set slave
 		for (int i = 0; i < master2slave.length; i++) {
 			String[] hostsInfo = master2slave[i].split("->");
-			rcm.addSlave(hostsInfo[0], hostsInfo[1], true);
+			if (hostsInfo.length == 2) {
+				rcm.addSlave(hostsInfo[0], hostsInfo[1], true);
+			}
 		}
 	}
 
