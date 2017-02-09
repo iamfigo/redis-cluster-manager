@@ -3305,19 +3305,19 @@ public class RedisClusterManager {
 		//meet
 		for (int i = 0; i < master2slave.length; i++) {
 			String[] hostsInfo = master2slave[i].split("->");
+			Jedis clusterNode = connect(hostsInfo[0]);
+			clusterNode.clusterMeet(host, port);
+			clusterNode.close();
 			if (hostsInfo.length == 2) {
-				Jedis clusterNode = connect(hostsInfo[0]);
 				Jedis slaveNode = connect(hostsInfo[1]);
 				try {
-					clusterNode.clusterMeet(host, port);
-					clusterNode.close();
 					slaveNode.clusterMeet(host, port);
 					slaveNode.close();
 				} catch (redis.clients.jedis.exceptions.JedisConnectionException e) {
 					System.out.println(hostsInfo[1] + " clusterMeet connect error!");
 				}
 			} else {
-				System.out.println("请输入要添加的节点及主节点列表");
+				System.out.println(hostsInfo[0] + "，未添加从节点，存在风险");
 			}
 		}
 		System.out.println("cluster send meet all!");
