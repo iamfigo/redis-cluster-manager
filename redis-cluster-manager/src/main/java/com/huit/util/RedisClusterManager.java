@@ -512,8 +512,12 @@ public class RedisClusterManager {
 					BufferedReader br = new BufferedReader(new FileReader(filePath));
 					String data = null;
 					while ((data = br.readLine()) != null) {
-						JSONObject json = JSONObject.parseObject(data);
-						dataQueue.add(json);
+						try {
+							JSONObject json = JSONObject.parseObject(data);
+							dataQueue.add(json);
+						} catch (Exception e) {
+							System.out.println("dataParseError:" + data);
+						}
 						long count = scanCount.incrementAndGet();
 						if (count % 50000 == 0) {
 							if (readLastCountTime > 0) {
@@ -2476,7 +2480,7 @@ public class RedisClusterManager {
 		//		args = new String[] { "add-master", "172.20.16.87:29000", "172.20.16.88:29000" };
 		//args = new String[] { "add-master", "172.20.16.87:29005" };
 		//		args = new String[] { "analyze", "isKeyStat=true", "isCmdDetail=true", "showTop=20", "host=172.20.16.48",
-		//				"port=5001", "monitorTime=5" };
+		//				"port=5001", "maxCountLine=5" };
 		//args = new String[] { "add-slave","172.20.16.87:29000->172.20.16.88:29000;172.20.16.87:29001->172.20.16.88:29001" };
 		//args = new String[] { "add-slave","172.20.16.87:29001->172.20.16.88:29001" };
 		//args = new String[] { "add-node", "172.20.16.91:29010", "172.20.16.89:29010" };

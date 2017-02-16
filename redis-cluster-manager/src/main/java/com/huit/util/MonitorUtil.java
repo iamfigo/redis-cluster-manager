@@ -22,7 +22,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisMonitor;
 
 /**
- * java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 maxCountLine=5
  *
  * @author huit
  */
@@ -36,7 +36,7 @@ public class MonitorUtil {
 	static int showTop = 10, port = SystemConf.get("REDIS_PORT", Integer.class);
 	static String filePath = "", ipFilter = "", cmdFilter = "", host = SystemConf.get("REDIS_HOST");
 	static long monitorTime = 0;
-	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5";
+	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 maxCountLine=5";
 
 	public static void main(String[] args) throws Exception {
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log".split(" ");
@@ -45,7 +45,7 @@ public class MonitorUtil {
 		//args = "filePath=D:/redislog/ cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000".split(" ");
 		//args = "filePath=D:/redislog/  cmdFilter=ZREVRANGE keyStat=false isCmdDetail=true showTop=10".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.0.238.18 isCmdDetail=true".split(" ");
-		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log ipFilter=10.0.238.18".split(" ");
+//		args = "filePath=D://monitor_redis_20170213095506.log ipFilter=10.16.31.135 isCmdDetail=true".split(" ");
 		//args = helpInfo.split(" ");
 		for (String arg : args) {
 			if (arg.split("=").length != 2) {
@@ -67,7 +67,7 @@ public class MonitorUtil {
 				host = arg.split("=")[1];
 			} else if (arg.startsWith("port=")) {
 				port = Integer.valueOf(arg.split("=")[1]);
-			} else if (arg.startsWith("monitorTime=")) {
+			} else if (arg.startsWith("maxCountLine=")) {
 				monitorTime = Long.valueOf(arg.split("=")[1]) * 1000;
 			} else {
 				System.out.println(helpInfo);
@@ -194,12 +194,10 @@ public class MonitorUtil {
 	public static void loadData(File file) throws IOException, FileNotFoundException {
 		String data = null, key = null;
 		//1476754442.972956 [0 10.0.238.18:9131] "PING"
-		BufferedWriter bw = new BufferedWriter(new FileWriter(file + ".stat"));
 		BufferedReader br = new BufferedReader(new FileReader(file));
 		while ((data = br.readLine()) != null) {
 			parseData(data);
 		}
-		bw.close();
 		br.close();
 	}
 
