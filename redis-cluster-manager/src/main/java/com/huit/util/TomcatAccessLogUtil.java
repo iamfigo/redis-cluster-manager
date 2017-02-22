@@ -237,7 +237,7 @@ public class TomcatAccessLogUtil {
 			double avgTotal = (urlTimeCount.get(cmd).get() / 1.0 / urlCount.get(cmd).get());
 			double warnRatio = (count * 100.0 / urlCount.get(cmd).get());
 
-			System.out.println(cmd + "->count:" + count + " avgTime:" + fmt.format(avgTime) + " avgTotal:" + fmt.format(avgTotal) + " warnRatio:" + fmt.format(warnRatio) + "% urlRatio" + fmt.format(hitRatio) + "%)");
+			System.out.println(cmd + "->count:" + count + " avgTime:" + fmt.format(avgTime) + " avgTotal:" + fmt.format(avgTotal) + " warnRatio:" + fmt.format(warnRatio) + "% urlRatio:" + fmt.format(hitRatio) + "%");
 			String csv = cmd + "," + count + "," + fmt.format(avgTime) + "," + fmt.format(warnRatio) + "," + fmt.format(hitRatio) + "\r\n";
 			try {
 				fw.write(csv);
