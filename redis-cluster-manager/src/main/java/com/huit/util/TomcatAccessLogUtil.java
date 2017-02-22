@@ -1,42 +1,26 @@
 package com.huit.util;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisMonitor;
-
 /**
- * java -cp redis-cluster-util-jar-with-dependencies.jar com.jumei.util.MonitorUtil cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.TomcatAccessLogUtil filePath=‪D://tomcat_acclesss_log.txt maxCountLine=1000 showTop=100
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.TomcatAccessLogUtil filePath=/home/jm/tomcat/logs/access_log.txt maxCountLine=1000 showTop=100
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.TomcatAccessLogUtil filePath=/home/jm/tomcat/logs/localhost_access_log.2017-02-14.txt maxCountLine=100000 showTop=100
  *
  * @author huit
  */
-public class MonitorUtil {
-	static int cmdTotal = 0;
-	static Map<String, AtomicLong> cmdStat = new HashMap<String, AtomicLong>();
-	static Map<String, AtomicLong> hostStat = new HashMap<String, AtomicLong>();
-	static Map<String, AtomicLong> keyStat = new HashMap<String, AtomicLong>();
-	static List<String> cmdList = new ArrayList<String>();
-	static boolean isCmdDetail = false, isKeyStat;
-	static int showTop = 10, port = SystemConf.get("REDIS_PORT", Integer.class);
-	static String filePath = "", ipFilter = "", cmdFilter = "", host = SystemConf.get("REDIS_HOST");
-	static long monitorTime = 0;
-	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5";
+public class TomcatAccessLogUtil {
+	static Map<String, AtomicLong> urlStat = new HashMap<String, AtomicLong>();
+	static Map<String, AtomicLong> timeStat = new HashMap<String, AtomicLong>();
+	static int showTop = 50;
+	static String filePath = "";
+	static long maxCountLine = Long.MAX_VALUE;
+	static long readLine = 0, countLine;
+	public static String helpInfo = "filePath=D://tomcat_acclesss_log.txt maxCountLine=1000 showTop=100";
 
 	public static void main(String[] args) throws Exception {
 		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log".split(" ");
@@ -45,7 +29,7 @@ public class MonitorUtil {
 		//args = "filePath=D:/redislog/ cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000".split(" ");
 		//args = "filePath=D:/redislog/  cmdFilter=ZREVRANGE keyStat=false isCmdDetail=true showTop=10".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.0.238.18 isCmdDetail=true".split(" ");
-//		args = "filePath=D://monitor_redis_20170213095506.log ipFilter=10.16.31.135 isCmdDetail=true".split(" ");
+		//args = "filePath=D://tomcat_acclesss_log.txt maxCountLine=100 showTop=100".split(" ");
 		//args = helpInfo.split(" ");
 		for (String arg : args) {
 			if (arg.split("=").length != 2) {
@@ -53,163 +37,91 @@ public class MonitorUtil {
 			}
 			if (arg.startsWith("filePath=")) {
 				filePath = arg.split("=")[1];
-			} else if (arg.startsWith("ipFilter=")) {
-				ipFilter = arg.split("=")[1];
-			} else if (arg.startsWith("cmdFilter=")) {
-				cmdFilter = arg.split("=")[1];
-			} else if (arg.startsWith("isCmdDetail=")) {
-				isCmdDetail = Boolean.valueOf(arg.split("=")[1]);
-			} else if (arg.startsWith("isKeyStat=")) {
-				isKeyStat = Boolean.valueOf(arg.split("=")[1]);
 			} else if (arg.startsWith("showTop=")) {
 				showTop = Integer.valueOf(arg.split("=")[1]);
-			} else if (arg.startsWith("host=")) {
-				host = arg.split("=")[1];
-			} else if (arg.startsWith("port=")) {
-				port = Integer.valueOf(arg.split("=")[1]);
-			} else if (arg.startsWith("monitorTime=")) {
-				monitorTime = Long.valueOf(arg.split("=")[1]) * 1000;
+			} else if (arg.startsWith("maxCountLine=")) {
+				maxCountLine = Long.valueOf(arg.split("=")[1]);
 			} else {
+				System.out.println("unknown arg:" + arg);
 				System.out.println(helpInfo);
 				System.exit(0);
 			}
 		}
-		System.out.println("filePath=" + filePath + " ipFilter=" + ipFilter + " cmdFilter=" + cmdFilter + " isKeyStat="
-				+ isKeyStat + " isCmdDetail=" + isCmdDetail);
+		System.out.println("filePath=" + filePath + " maxCountLine=" + maxCountLine + " showTop=" + showTop);
 
-		if (monitorTime > 0 && port > 0) {
-			onlineMonitor();
-		} else {
-			long beginTime = System.currentTimeMillis();
-			File dir = new File(filePath);
-			if (dir.isDirectory()) {
-				for (File file : dir.listFiles()) {
-					loadData(file);
-				}
-			} else if (dir.isFile()) {
-				loadData(dir);
+		long beginTime = System.currentTimeMillis();
+		File dir = new File(filePath);
+		if (dir.isDirectory()) {
+			for (File file : dir.listFiles()) {
+				loadData(file);
 			}
-			printStat();
-			System.out.println("useTime:" + (System.currentTimeMillis() - beginTime));
+		} else if (dir.isFile()) {
+			loadData(dir);
 		}
-	}
-
-	public static void onlineMonitor() {
-		@SuppressWarnings("resource")
-		Jedis jedis = new Jedis(host, Integer.valueOf(port));
-		JedisMonitor monitor = new JedisMonitor() {
-			@Override
-			public void onCommand(String command) {
-				parseData(command);
-			}
-		};
-		final long beginTime = System.currentTimeMillis();
-		new Thread(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					Thread.sleep(monitorTime);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				} finally {
-					printStat();
-					System.out.println("useTime:" + (System.currentTimeMillis() - beginTime));
-					System.exit(0);
-				}
-			}
-
-		}, "monitorTimer").start();
-		jedis.monitor(monitor);
+		printStat();
+		System.out.println("readLine:" + readLine + " countLine:" + countLine + " useTime:" + (System.currentTimeMillis() - beginTime));
 	}
 
 	public static void printStat() {
-		if ("".equals(cmdFilter)) {
-			printStatMap(cmdStat);
-		}
-		if ("".equals(ipFilter)) {
-			printStatMap(hostStat);
-		}
-		printStatMap(keyStat);
-		if (!cmdList.isEmpty()) {
-			int showCount = 0;
-			synchronized (cmdList) {
-				for (String cmdInfo : cmdList) {
-					System.out.println(cmdInfo);
-					showCount++;
-					if (showCount > showTop) {
-						break;
-					}
-				}
-			}
-		}
+		printStatMap(urlStat);
 	}
 
 	public static void parseData(String data) {
-		if ("OK".equals(data)) {
+		String[] infos = data.split(" ");
+		int index = infos[6].indexOf("?");
+		String url;
+		if (index > 0) {
+			url = infos[6].substring(0, index);
+		} else {
+			url = infos[6];
+		}
+
+		if (data.indexOf("HTTP/1.1 404") > 0 || data.indexOf("favicon.ico") > 0) {
 			return;
 		}
-		int hostBegin = data.indexOf("[");
-		int hostEnd = data.indexOf("]");
 
-		double time;
-		String clientIp = null;
-		String clientIpPort;
-		String cmdDetail = null;
-		String[] cmdInfo = null;
-		if (hostBegin > 0 && hostBegin > 0) {
-			time = Double.valueOf(data.substring(0, hostBegin));
-			clientIpPort = data.substring(hostBegin + 1, hostEnd).split(" ")[1];
-			clientIp = clientIpPort.split(":")[0];
-			cmdDetail = data.substring(hostEnd + 2);
-			cmdInfo = cmdDetail.split(" ");
+		if ("GET".equals(url) || "POST".equals(url) || "/".equals(url)) {
+			//System.out.println("parseErrorData:" + data);
+			return;
 		}
 
-		if (null != ipFilter && !clientIp.startsWith(ipFilter)) {
-			return;//只统计指定主机
+		addstat(urlStat, url);
+		int time = 0;
+		try {
+			time = Integer.valueOf(infos[10]);
+		} catch (Exception e) {
+			System.out.println(infos[10]);
 		}
-
-		if (cmdInfo.length >= 1) {
-			String key = cmdInfo[0].replace("\"", "");
-			if (null != cmdFilter && !key.startsWith(cmdFilter)) {
-				return;//只统计指定命令
-			}
-
-			cmdTotal++;
-
-			if (isKeyStat && cmdInfo.length >= 2) {
-				addstat(keyStat, cmdInfo[1]);
-			}
-			if (isCmdDetail) {
-				synchronized (cmdList) {
-					cmdList.add(cmdDetail);
-				}
-			}
-			addstat(cmdStat, key);
-			addstat(hostStat, clientIp);
-		} else {
-			System.out.println();
-		}
+		addstat(timeStat, url, time);
+		countLine++;
 	}
+
 
 	public static void loadData(File file) throws IOException, FileNotFoundException {
 		String data = null, key = null;
-		//1476754442.972956 [0 10.0.238.18:9131] "PING"
-		BufferedWriter bw = new BufferedWriter(new FileWriter(file + ".stat"));
 		BufferedReader br = new BufferedReader(new FileReader(file));
 		while ((data = br.readLine()) != null) {
+			readLine++;
+			if (readLine > maxCountLine) {
+				break;
+			}
 			parseData(data);
 		}
-		bw.close();
 		br.close();
 	}
 
 	public static void addstat(Map<String, AtomicLong> stat, String key) {
+		addstat(stat, key, 1);
+	}
+
+	public static void addstat(Map<String, AtomicLong> stat, String key, int value) {
 		AtomicLong count = stat.get(key);
 		if (null == count) {
 			count = new AtomicLong();
+			count.set(value);
 			stat.put(key, count);
 		}
-		count.incrementAndGet();
+		count.addAndGet(value);
 	}
 
 	public static void printStatMap(Map<String, AtomicLong> cmdStat) {
@@ -237,18 +149,38 @@ public class MonitorUtil {
 		Iterator<Entry<String, AtomicLong>> it = arrayList.iterator();
 		double hitRatio = 0;
 		int showCount = 0;
+		FileWriter fw = null;
+		try {
+			fw = new FileWriter("tomcat_access_stat.txt");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		while (it.hasNext()) {
 			Entry<String, AtomicLong> entry = it.next();
 			cmd = entry.getKey();
 			Long count = entry.getValue().longValue();
 			if (count > 0) {
-				hitRatio = count / 0.01 / cmdTotal;
+				hitRatio = count / 0.01 / readLine;
 			}
-			System.out.println(cmd + "->" + count + "(" + new DecimalFormat("#0.00").format(hitRatio) + "%)");
+			DecimalFormat fmt = new DecimalFormat("#0.00");
+			double avgTime = (timeStat.get(cmd).get() / 1.0 / count);
+
+			System.out.println(cmd + "->count:" + count + " avgTime:" + fmt.format(avgTime) + "(" + fmt.format(hitRatio) + "%)");
+			String csv = cmd + "," + count + "," + fmt.format(avgTime) + "\r\n";
+			try {
+				fw.write(csv);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 			showCount++;
 			if (showCount > showTop) {
 				break;
 			}
+		}
+		try {
+			fw.close();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 		System.out.println();
 	}

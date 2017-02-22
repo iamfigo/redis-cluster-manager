@@ -37,7 +37,7 @@ public class HtmlScriptCheck {
 
     static String[] notSecure = "eval(,<script>,createElement(,alert(,appendChild(,<iframe,<video,<audio,<object,<embed,<img".split(",");
 
-    static Set<String> notSecurerSet = new HashSet<String>();
+    static Set<String> uidSet = new HashSet<String>();
     static FileWriter fw = null;
 
     public static void main(String[] args) throws Exception {
@@ -74,7 +74,7 @@ public class HtmlScriptCheck {
         for (int i = offset; i < indexInt; i++) {
             String key = "s_" + i;
             if (i % 10000 == 0) {
-                System.out.println("checkIndex:" + i + " total:" + indexInt + " notSecure:" + notSecurerSet.size());
+                System.out.println("checkIndex:" + i + " total:" + indexInt + " notSecure:" + uidSet.size());
             }
             List<String> datas = cluster.hmget(key, TITLE, DESCRIPTION, USER_ID);
             String title = datas.get(0);
@@ -83,9 +83,9 @@ public class HtmlScriptCheck {
             replace(key, TITLE, userid, title);
             replace(key, DESCRIPTION, userid, desc);
         }
-        System.out.println("notSecureId->size:" + notSecurerSet.size());
-        fw.write("notSecureId->size:" + notSecurerSet.size() + "\r\n");
-        for (String key : notSecurerSet) {
+        System.out.println("notSecureId->size:" + uidSet.size());
+        fw.write("notSecureId->size:" + uidSet.size() + "\r\n");
+        for (String key : uidSet) {
             fw.write(key + "\r\n");
         }
         fw.close();
@@ -100,7 +100,7 @@ public class HtmlScriptCheck {
             fw.write(key + "->userid:" + userid + " " + filed + ":" + data + "\r\n");
         } catch (IOException e) {
         }
-        notSecurerSet.add(key);
+        uidSet.add(key);
         if (isReplace) {
             Map map = new HashMap<String, String>();
             map.put(filed, "*");
