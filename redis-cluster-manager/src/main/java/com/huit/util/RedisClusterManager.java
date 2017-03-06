@@ -39,8 +39,8 @@ public class RedisClusterManager {
 		poolConfig.setMaxIdle(10);
 		poolConfig.setMinIdle(1);
 		poolConfig.setMaxWaitMillis(30000);
-		poolConfig.setTestOnBorrow(true);
-		poolConfig.setTestOnReturn(true);
+		//poolConfig.setTestOnBorrow(true);
+		//poolConfig.setTestOnReturn(true);
 		poolConfig.setTestWhileIdle(true);
 		cluster = new JedisCluster(nodes, DEFAULT_TIMEOUT, MAX_REDIRECTIONS, poolConfig);
 	}
