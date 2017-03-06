@@ -2,11 +2,6 @@ package com.huit.util;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.mongodb.MongoClient;
-import com.mongodb.WriteConcern;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
-import org.bson.Document;
 import redis.clients.jedis.*;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.util.JedisClusterCRC16;
@@ -660,6 +655,7 @@ public class RedisClusterManager {
 		}
 	}
 
+	/*
 	private void importMongodb(String KeyPre, String filePath) {
 		MongoClient mongo = new MongoClient("mycentos-01", 27017);
 		MongoDatabase db0 = mongo.getDatabase("db0");
@@ -766,7 +762,7 @@ public class RedisClusterManager {
 		}
 		mongo.close();
 	}
-
+*/
 	/**
 	 * 按key导出数据
 	 */
@@ -961,6 +957,7 @@ public class RedisClusterManager {
 				lastWriteCount.set(count);
 			}
 			if (count % FILE_PARTITION_LINE_COUNT == 0) {//分文件 100W
+				bw.close();
 				createExportFile(filePath + "." + (count / FILE_PARTITION_LINE_COUNT));
 			}
 		} catch (IOException e) {
@@ -2743,7 +2740,7 @@ public class RedisClusterManager {
 				}
 			} else if ("import-mongodb".equals(cmd)) {
 				if (args.length == 3) {
-					rcm.importMongodb(args[1], args[2]);
+					//rcm.importMongodb(args[1], args[2]);
 				} else {
 					System.out.println("import keyPattern D:/import.dat");
 				}
