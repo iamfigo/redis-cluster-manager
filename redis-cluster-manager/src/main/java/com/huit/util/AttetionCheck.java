@@ -12,7 +12,7 @@ import java.util.*;
 
 /**
  * 根据指定的文件统计是否关注
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.AttetionCheck host=172.20.16.48 port=5001 filePath=/uid.txt uid=7114937
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.AttetionCheck host=172.20.16.48 port=5001 key=/uid.txt uid=7114937
  *
  * @author huit
  */
@@ -44,7 +44,7 @@ public class AttetionCheck {
             if (arg.split("=").length != 2) {
                 continue;
             }
-            if (arg.startsWith("filePath=")) {
+            if (arg.startsWith("key=")) {
                 filePath = arg.split("=")[1];
             } else if (arg.startsWith("host=")) {
                 host = arg.split("=")[1];
@@ -58,7 +58,7 @@ public class AttetionCheck {
                 System.exit(0);
             }
         }
-        System.out.println("host=" + host + " port=" + port + " filePath:" + filePath + " uid:" + uid);
+        System.out.println("host=" + host + " port=" + port + " key:" + filePath + " uid:" + uid);
         connectCluser();
         long beginTime = System.currentTimeMillis();
         try {

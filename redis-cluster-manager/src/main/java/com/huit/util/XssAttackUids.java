@@ -14,10 +14,10 @@ import java.util.Set;
 
 /**
  * stage
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.XssAttackUids host=10.16.32.62 port=29440 filePath=/home/huit/xss-attack-show-id.txt
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.XssAttackUids host=10.16.32.62 port=29440 key=/home/huit/xss-attack-show-id.txt
  *
  * prod
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.XssAttackUids host=10.17.22.4 port=29000 filePath=/home/huit/xss-attack-show-id.txt
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.XssAttackUids host=10.17.22.4 port=29000 key=/home/huit/xss-attack-show-id.txt
  *
  * @author huit
  */
@@ -52,7 +52,7 @@ public class XssAttackUids {
 			if (arg.split("=").length != 2) {
 				continue;
 			}
-			if (arg.startsWith("filePath=")) {
+			if (arg.startsWith("key=")) {
 				filePath = arg.split("=")[1];
 			} else if (arg.startsWith("host=")) {
 				host = arg.split("=")[1];
@@ -63,7 +63,7 @@ public class XssAttackUids {
 				System.exit(0);
 			}
 		}
-		System.out.println("host=" + host + " port=" + port + " filePath:" + filePath);
+		System.out.println("host=" + host + " port=" + port + " key:" + filePath);
 		connectCluser();
 		long beginTime = System.currentTimeMillis();
 		BufferedReader br = new BufferedReader(new FileReader(filePath));
