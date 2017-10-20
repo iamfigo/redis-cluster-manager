@@ -172,13 +172,12 @@ public class DataMigration {
                     do {
                         ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
                         zcursor = sscanResult.getStringCursor();
+                        Map<String, Double> dataJson = new HashMap<String, Double>();
                         for (Tuple data : sscanResult.getResult()) {
-                            Map<String, Double> dataJson = new HashMap<String, Double>();
-                            dataJson.put("score", data.getScore());
-                            dataJson.put("value", Double.valueOf(data.getElement()));
+                            dataJson.put(data.getElement(), data.getScore());
                             value.add(dataJson);
-                            cluster.zadd(clusterKey, dataJson);
                         }
+                        cluster.zadd(clusterKey, dataJson);
                     } while (!"0".equals(zcursor));
                     json.put("value", value);
                 } else {
