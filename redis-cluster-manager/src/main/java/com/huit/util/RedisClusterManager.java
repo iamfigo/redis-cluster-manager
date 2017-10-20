@@ -2137,7 +2137,7 @@ public class RedisClusterManager {
         SimpleDateFormat dfs = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss [");
         String useTime = " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s";
         System.out.println(dfs.format(new Date()) + "exportKey:" + keyPre + "]" + useTime);
-        System.out.println("scanTotalcount->" + scanTotalcount + " exportTotalCount->" + exportTotalCount);
+        System.out.println("scanTotalCount->" + scanTotalcount + " exportTotalCount->" + exportTotalCount);
     }
 
     /**
@@ -3465,7 +3465,13 @@ public class RedisClusterManager {
 
     private Jedis connect(String hostPort) {
         String[] hostInfo = hostPort.split(":");
-        return new Jedis(hostInfo[0], Integer.parseInt(hostInfo[1]));
+        Jedis jedis = new Jedis(hostInfo[0], Integer.parseInt(hostInfo[1]));
+        try {
+            jedis.info();//test
+        } catch (Exception e) {
+            System.out.println("connect error,host:" + hostInfo[0] + " port:" + hostInfo[1]);
+        }
+        return jedis;
     }
 
     private void failOver(String slaveNode) throws Exception {

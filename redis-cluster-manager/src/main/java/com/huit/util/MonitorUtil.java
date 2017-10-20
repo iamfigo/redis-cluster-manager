@@ -39,7 +39,8 @@ public class MonitorUtil {
 	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 maxCountLine=5";
 
 	public static void main(String[] args) throws Exception {
-		//args = "filePath=D:/redislog/monitor_redis_20161021093703.log".split(" ");
+//		args = "filePath=D:/20171019.log isKeyStat=true showTop=50".split(" ");
+		args = "filePath=D:/fc-redis.log isKeyStat=true showTop=50".split(" ");
 		//args = "filePath=D:/redislog/ ipFilter=10.1.29.41 keyStat=false isCmdDetail=false".split(" ");
 		//args = "filePath=D:/redislog/  keyStat=false isCmdDetail=true showTop=10".split(" ");
 		//args = "filePath=D:/redislog/ cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000".split(" ");
