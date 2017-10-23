@@ -141,20 +141,22 @@ public class DataMigration {
                     cluster.set(clusterKey, value);
                     json.put("value", value);
                 } else if ("list".equals(keyType)) {
-                    int readSize, readCount = 100000;//大list且更新频繁导致分页处数据丢失或重复
-                    long start = 0, end = start + readCount;
-                    List<String> value = new ArrayList<String>();
-                    do {
-                        List<String> data = nodeCli.lrange(key, start, end);
-                        readSize = data.size();
-                        for (int i = 0; i < readSize; i++) {
-                            String valueStr = data.get(i);
-                            value.add(valueStr);
-                            cluster.rpush(clusterKey, valueStr);
-                        }
-                        start = end + 1;
-                        end += readSize;
-                    } while (readSize == readCount + 1);
+//                    int readSize, readCount = 3;//大list且增删频繁导致分页处数据丢失或重复
+//                    long start = 0, end = start + readCount;
+//                    List<String> value = new ArrayList<String>();
+//                    do {
+//                        List<String> data = nodeCli.lrange(key, start, end);
+//                        readSize = data.size();
+//                        for (int i = 0; i < readSize; i++) {
+//                            String valueStr = data.get(i);
+//                            value.add(valueStr);
+//                            cluster.rpush(clusterKey, valueStr);
+//                        }
+//                        start = end + 1;
+//                        end += readSize;
+//                    } while (readSize == readCount + 1);//-1 is the last element of the list
+                    List<String> value = nodeCli.lrange(key, 0, -1);
+                    cluster.rpush(clusterKey, value.toArray(new String[0]));
                     json.put("value", value);
                 } else if ("set".equals(keyType)) {
                     String scursor = "0";
@@ -239,7 +241,7 @@ public class DataMigration {
                 clusterPort = Integer.valueOf(arg.split("=")[1]);
             } else if (arg.startsWith("logFilePath=")) {
                 logFilePath = arg.split("=")[1];
-                bw = new BufferedWriter(new FileWriter(logFilePath, true));
+                bw = new BufferedWriter(new FileWriter(logFilePath));
                 Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
                     @Override
                     public void run() {
