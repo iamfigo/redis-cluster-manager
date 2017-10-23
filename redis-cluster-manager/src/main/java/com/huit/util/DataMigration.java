@@ -136,7 +136,7 @@ public class DataMigration {
                 } else if ("string".equals(keyType)) {
                     String value = nodeCli.get(key);
                     cluster.set(clusterKey, value);
-                    json.put("value", key);
+                    json.put("value", value);
                 } else if ("list".equals(keyType)) {
                     int readSize, readCount = 1;
                     long start = 0, end = start + readCount;
@@ -182,7 +182,7 @@ public class DataMigration {
                     json.put("value", value);
                 } else if ("none".equals(keyType)) {//刚好过期的key,可以不用管
                 } else {
-                    System.out.println("unknow keyType:" + keyType + "key:" + key);
+                    System.out.println("unknow keyType:" + keyType + " key:" + key);
                 }
                 thisExportSize++;
                 migrationCount++;
