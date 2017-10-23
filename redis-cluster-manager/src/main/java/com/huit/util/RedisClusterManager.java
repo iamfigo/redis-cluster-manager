@@ -2422,7 +2422,8 @@ public class RedisClusterManager {
             String type = nodeInfo[2];
             if (type.contains("master")) {
                 Jedis nodeCli = new Jedis(host, port);//连接redis
-                Set<String> keys = nodeCli.keys(pattern);// TODO change use scan
+                Set<String> keys = nodeCli.keys(pattern);
+                System.out.println("host:" + host + " port:" + port);
                 for (String key : keys) {
                     System.out.println(key);
                 }
@@ -2571,8 +2572,7 @@ public class RedisClusterManager {
         //		args = new String[] { "benchmark", "E:/bakup/jumei-app/show-dev-data-export.dat", "10" };
         //		args = new String[] { "check" };
         //		args = new String[] { "count" };
-        //args = new String[] { "create",
-        //		"172.20.16.87:29000->172.20.16.88:29000;172.20.16.87:29001->172.20.16.88:29001;172.20.16.87:29002->172.20.16.88:29002" };
+//        args = new String[]{"create", "10.0.6.200:6000->;10.0.6.200:6001->;10.0.6.200:6002->;10.0.6.200:6003->;10.0.6.200:6004->;10.0.6.200:6005->;10.0.6.200:6006->;10.0.6.200:6007->;"};
         //		args = new String[] { "del" };
         //		args = new String[] { "dels" };
         //		args = new String[] { "del-node", ":0" };
@@ -2592,7 +2592,7 @@ public class RedisClusterManager {
         //		args = new String[] { "import-mongodb", "*", "D:/bakup/jumeiapp-redis/show-imported-list.2016.1.11.dat" };
         //		args = new String[] { "info" };
         //		args = new String[] { "info", "output", "ops" };
-        //		args = new String[] { "keys"};
+//        args = new String[]{"keys", "*"};
         //		args = new String[] { "keysize"};
         //args = new String[] { "monitor", "2" };
         //		args = new String[] { "raminfo", "*" };
@@ -3422,13 +3422,14 @@ public class RedisClusterManager {
             String[] hostsInfo = master2slave[i].split("->");
             Jedis clusterNode = connect(hostsInfo[0]);
             int thisBegin = slotIndex;
-            for (; slotIndex <= (i + 1) * slot; slotIndex++) {
+            for (; slotIndex <= (i + 1) * slot && slotIndex < 16384; slotIndex++) {
                 try {
                     clusterNode.clusterAddSlots(slotIndex);
                 } catch (redis.clients.jedis.exceptions.JedisDataException e) {
                     String msg = e.getMessage();
                     if (msg.contains("is already busy")) {
                     } else {
+                        System.out.println("clusterAddSlotsError hostsInfo:" + hostsInfo[0] + " slotIndex:" + slotIndex);
                         e.printStackTrace();
                     }
                 } catch (redis.clients.jedis.exceptions.JedisConnectionException e2) {
