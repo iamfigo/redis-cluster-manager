@@ -185,7 +185,6 @@ public class DataMigration {
                     } while (!"0".equals(zcursor));
                     json.put("value", value);
                 } else if ("none".equals(keyType)) {//刚好过期的key,可以不用管
-                    expireCount++;
                 } else {
                     System.out.println("unknow keyType:" + keyType + " key:" + key);
                 }
