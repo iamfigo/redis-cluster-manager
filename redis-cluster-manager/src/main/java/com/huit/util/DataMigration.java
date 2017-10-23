@@ -6,6 +6,7 @@ import redis.clients.jedis.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -15,6 +16,7 @@ import java.util.*;
 public class DataMigration {
     private static String redisHost, clusterHost, dbs, logFilePath, keyPre = "*";
     private static int redisPort, clusterPort;
+    private static Set<String> dbsSet = new HashSet<String>();//要签移的db
 
     private static String getValue(String data, String key) {
         for (String s : data.split(",")) {
@@ -42,19 +44,8 @@ public class DataMigration {
         parseArgs(args);
 
         Jedis jedis = new Jedis(redisHost, redisPort);
-        String info = jedis.info("Keyspace");
-        String[] infos = info.split("\r\n");
-        for (String s : infos) {
-            if (s.startsWith("#")) {
-                continue;
-            }
-            String[] dbInfo = s.split(":");
 
-            if ("all".equals(dbs) || dbs.contains(dbInfo[0])) {
-                dbSize.put(dbInfo[0], getValueLong(dbInfo[1], "keys"));
-                System.out.println(s);
-            }
-        }
+        printMigrationInfo(jedis);
 
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
         nodes.add(new HostAndPort(clusterHost, clusterPort));
@@ -69,10 +60,29 @@ public class DataMigration {
         long beginTime = System.currentTimeMillis();
         for (Map.Entry<String, Long> db : dbSize.entrySet()) {
             String dbKey = db.getKey();
-            migrationKeyOneHost(jedis, Integer.valueOf(dbKey.substring("db".length())), keyPre, cluster);
+            System.out.println("start to migration db:" + dbKey + "...");
+            migrationKeyOneHost(jedis, Integer.valueOf(dbKey.substring("db".length())), db.getValue(), keyPre, cluster);
         }
 
         System.out.println("scanTotalCount->" + scanTotalCount + " migrationCount->" + migrationTotalCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
+    }
+
+    private static void printMigrationInfo(Jedis jedis) {
+        String info = jedis.info("Keyspace");
+        System.out.println("migration db info begin");
+        String[] infos = info.split("\r\n");
+        for (String s : infos) {
+            if (s.startsWith("#")) {
+                continue;
+            }
+            String[] dbInfo = s.split(":");
+
+            if ("all".equals(dbs) || dbsSet.contains(dbInfo[0])) {
+                dbSize.put(dbInfo[0], getValueLong(dbInfo[1], "keys"));
+                System.out.println(s);
+            }
+        }
+        System.out.println("migration db info end");
     }
 
     static ScanParams sp = new ScanParams();
@@ -87,18 +97,11 @@ public class DataMigration {
     /**
      * 按key导出数据
      */
-    public static void migrationKeyOneHost(Jedis nodeCli, int db, String keyPre, JedisCluster cluster) {
+    public static void migrationKeyOneHost(Jedis nodeCli, int db, Long dbKeySize, String keyPre, JedisCluster cluster) {
         String[] exportKeyPre = keyPre.split(",");
         nodeCli.select(db);
         long scanCount = 0, migrationCount = 0;
         long beginTime = System.currentTimeMillis();
-        String info = nodeCli.info("Keyspace");
-        long dbKeySize = 0;
-        if (info.indexOf("db0:keys=") > 0) {
-            String value = info.substring(info.indexOf("db0:keys=") + "db0:keys=".length()).split(",")[0];
-            dbKeySize = Long.valueOf(value);
-        }
-
         String cursor = "0";
         long thisScanSize = 0, thisExportSize = 0;
         do {
@@ -138,18 +141,19 @@ public class DataMigration {
                     cluster.set(clusterKey, value);
                     json.put("value", value);
                 } else if ("list".equals(keyType)) {
-                    int readSize, readCount = 1;
+                    int readSize, readCount = 100000;//大list且更新频繁导致分页处数据丢失或重复
                     long start = 0, end = start + readCount;
                     List<String> value = new ArrayList<String>();
                     do {
                         List<String> data = nodeCli.lrange(key, start, end);
                         readSize = data.size();
                         for (int i = 0; i < readSize; i++) {
-                            value.add(data.get(i));
+                            String valueStr = data.get(i);
+                            value.add(valueStr);
+                            cluster.rpush(clusterKey, valueStr);
                         }
                         start = end + 1;
                         end += readSize;
-                        cluster.rpush(clusterKey, (String[]) data.toArray());
                     } while (readSize == readCount + 1);
                     json.put("value", value);
                 } else if ("set".equals(keyType)) {
@@ -181,8 +185,14 @@ public class DataMigration {
                     } while (!"0".equals(zcursor));
                     json.put("value", value);
                 } else if ("none".equals(keyType)) {//刚好过期的key,可以不用管
+                    expireCount++;
                 } else {
                     System.out.println("unknow keyType:" + keyType + " key:" + key);
+                }
+                long ttl = nodeCli.ttl(key);
+                if (ttl > 0) {//统一设置ttl时间
+                    json.put("ttl", ttl);
+                    cluster.expire(clusterKey, (int) ttl);
                 }
                 thisExportSize++;
                 migrationCount++;
@@ -191,7 +201,7 @@ public class DataMigration {
             }
         } while ((!"0".equals(cursor)));
 
-        System.out.println("scanCount->" + scanCount + " migrationCount->" + migrationCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
+        System.out.println("migration db:" + db + " success, scanCount->" + scanCount + " expireCount->" + (dbKeySize - migrationCount) + " migrationCount->" + migrationCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
         scanTotalCount += scanCount;
         migrationTotalCount += migrationCount;
     }
@@ -223,6 +233,7 @@ public class DataMigration {
                 clusterHost = arg.split("=")[1];
             } else if (arg.startsWith("dbs=")) {
                 dbs = arg.split("=")[1];
+                dbsSet.addAll(Arrays.asList(dbs.split(",")));
             } else if (arg.startsWith("redisPort=")) {
                 redisPort = Integer.valueOf(arg.split("=")[1]);
             } else if (arg.startsWith("clusterPort=")) {
