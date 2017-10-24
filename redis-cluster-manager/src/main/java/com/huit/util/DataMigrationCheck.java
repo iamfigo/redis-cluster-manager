@@ -106,6 +106,9 @@ public class DataMigrationCheck {
             } else if ("expire".equals(cmd)) {
                 Long clusterValue = cluster.ttl(clusterKey);
                 String oldValue = trimValue(cmdInfo[2]);
+                if (-2 == clusterValue) {//没有key
+                    System.out.println("keyNotExist:" + data);
+                }
                 if (Long.valueOf(oldValue) - clusterValue >= 1) {//超过一1秒肯定不正常
                     System.out.println("notSync:" + data + "->clusterValue:" + clusterValue);
                 } else {
