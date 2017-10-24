@@ -141,7 +141,7 @@ public class DataMigration {
                 String keyType = nodeCli.type(key);
                 json.put("type", keyType);
                 long ttl = nodeCli.ttl(key);//读取key数据之前先得到key过期时间，防止在写数据的过程中出现数据过期
-                if ("hash".equals(keyType)) {
+                if ("hash".equals(keyType)) {//覆盖
                     //nodeCli.hgetAll(key);//大key read time out
                     //cluster.hmset(clusterKey, value);//大key ERR Protocol error: invalid multibulk length
                     Map value = new HashMap();
@@ -166,7 +166,7 @@ public class DataMigration {
                         }
                     } while (!"0".equals(hcursor));
                     json.put("value", value);
-                } else if ("string".equals(keyType)) {
+                } else if ("string".equals(keyType)) {//覆盖
                     String value = nodeCli.get(key);
                     try {
                         if (null != value && value.length() > 0) {
@@ -178,7 +178,7 @@ public class DataMigration {
                         e.printStackTrace();
                     }
                     json.put("value", value);
-                } else if ("list".equals(keyType)) {
+                } else if ("list".equals(keyType)) {//删除再覆盖
                     cluster.del(clusterKey);//list不能合并，必须要先删除老的key
                     int readSize, readCount = 10000;//大list且增删频繁导致分页处数据丢失或重复
                     long start = 0, end = start + readCount;
@@ -205,7 +205,7 @@ public class DataMigration {
                         end += readSize;
                     } while (readSize == readCount + 1);//-1 is the last element of the list
                     json.put("value", value);
-                } else if ("set".equals(keyType)) {
+                } else if ("set".equals(keyType)) {//新新加
                     String scursor = "0";
                     List<String> value = new ArrayList<String>();
                     do {
