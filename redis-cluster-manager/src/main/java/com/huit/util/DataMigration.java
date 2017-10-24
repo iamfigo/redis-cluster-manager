@@ -109,19 +109,17 @@ public class DataMigration {
     public static void migrationKeyOneHost(Jedis nodeCli, int db, Long dbKeySize, String keyPre, JedisCluster cluster) {
         String[] exportKeyPre = keyPre.split(",");
         nodeCli.select(db);
-        long scanCount = 0, migrationCount = 0;
         long beginTime = System.currentTimeMillis();
         String cursor = "0";
-        long thisScanSize = 0, thisMigrationSize = 0, thisErrorCount = 0;
+        long thisScanCount = 0, thisMigrationCount = 0, thisErrorCount = 0;
         do {
             ScanResult<String> keys = nodeCli.scan(cursor, sp);
             cursor = keys.getStringCursor();
             List<String> result = keys.getResult();
             for (String key : result) {
-                thisScanSize++;
-                scanCount++;
-                if (thisScanSize % 1000 == 0) {
-                    System.out.println("migration db:" + db + " thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisMigrationSize:" + thisMigrationSize
+                thisScanCount++;
+                if (thisScanCount % 1000 == 0) {
+                    System.out.println("migration db:" + db + " thisScanSize:" + thisScanCount + "/" + dbKeySize + " thisMigrationSize:" + thisMigrationCount
                             + " thisErrorCount:" + thisErrorCount + " thisUseTime:" + (System.currentTimeMillis() - beginTime) / 1000 + "s)");
                 }
 
@@ -258,16 +256,14 @@ public class DataMigration {
                     json.put("ttl", ttl);
                     cluster.expire(clusterKey, (int) ttl);
                 }
-                thisMigrationSize++;
-                migrationCount++;
-
+                thisMigrationCount++;
                 writeLog(json);
             }
         } while ((!"0".equals(cursor)));
 
-        System.out.println("migration db:" + db + " success, scanCount->" + scanCount + " expireCount->" + (dbKeySize - migrationCount) + " migrationCount->" + migrationCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
-        scanTotalCount.addAndGet(scanCount);
-        migrationTotalCount.addAndGet(migrationCount);
+        System.out.println("migration db:" + db + " success thisScanCount->" + thisScanCount + " thisMigrationCount->" + thisMigrationCount + " thisErrorCount->" + thisErrorCount + " expireCount->" + (dbKeySize - thisMigrationCount) + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
+        scanTotalCount.addAndGet(thisScanCount);
+        migrationTotalCount.addAndGet(thisMigrationCount);
         errorTotalCount.addAndGet(thisErrorCount++);
         nodeCli.close();
     }
