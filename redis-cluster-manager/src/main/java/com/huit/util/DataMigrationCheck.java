@@ -2,7 +2,6 @@ package com.huit.util;
 
 import com.alibaba.fastjson.JSONObject;
 import redis.clients.jedis.*;
-import redis.clients.util.SafeEncoder;
 
 import java.io.*;
 import java.util.*;
@@ -13,19 +12,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationCheck {
-    private static String redisHost, clusterHost, dbs, logFilePath, monitorLogFilePath, ipFilter, keyPre = "*";
+    private static String redisHost, clusterHost, dbs, logFilePath, ipFilter;
     private static int redisPort, clusterPort, monitorTime;
-    private static Set<String> dbsSet = new HashSet<String>();//要签移的db
 
-
-    private static Map<String, Long> dbSize = new TreeMap<String, Long>();
-
-    private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 monitorLogFilePath=d:/fc-redis.log ipFilter=127.0.0.1 monitorTime=100";
+    private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 ipFilter=127.0.0.1 monitorTime=100";
 
     static JedisCluster cluster;
 
     public static void main(String[] args) throws IOException {
-        args = helpInfo.split(" ");
+//        args = helpInfo.split(" ");
         parseArgs(args);
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
         nodes.add(new HostAndPort(clusterHost, clusterPort));
@@ -36,14 +31,6 @@ public class DataMigrationCheck {
         poolConfig.setMaxWaitMillis(30000);
         poolConfig.setTestWhileIdle(true);
         cluster = new JedisCluster(nodes, 5000, 6, poolConfig);
-
-
-//        BufferedReader br = new BufferedReader(new FileReader(monitorLogFilePath));
-//        String data;
-//        while ((data = br.readLine()) != null) {
-//            compareData(data);
-//        }
-//        br.close();
 
         onlineMonitor();
     }
@@ -164,11 +151,11 @@ public class DataMigrationCheck {
         }
     }
 
+    //TODO 16进制转中文
     public static String findStringHex(String s) {
         String v = "string\\xe4\\xb8\\xad\\xe5\\x9b\\xbd";
         return v;
     }
-
 
     // 转化十六进制编码为字符串
     public static String toStringHex(String s) {
@@ -214,25 +201,6 @@ public class DataMigrationCheck {
         jedis.monitor(monitor);
     }
 
-
-    static AtomicLong scanTotalCount = new AtomicLong(), migrationTotalCount = new AtomicLong(), errorTotalCount = new AtomicLong();
-
-    static BufferedWriter bw = null;
-
-    private synchronized static void writeLog(JSONObject json) {
-        if (null == bw) {
-            return;
-        }
-        try {
-            bw.write(json.toJSONString());
-            bw.write('\r');
-            bw.write('\n');
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.out.println("writeLogError->" + json);
-        }
-    }
-
     private static void parseArgs(String[] args) throws IOException {
         for (String arg : args) {
             if (arg.split("=").length != 2) {
@@ -242,34 +210,14 @@ public class DataMigrationCheck {
                 redisHost = arg.split("=")[1];
             } else if (arg.startsWith("clusterHost=")) {
                 clusterHost = arg.split("=")[1];
-            } else if (arg.startsWith("dbs=")) {
-                dbs = arg.split("=")[1];
-                dbsSet.addAll(Arrays.asList(dbs.split(",")));
             } else if (arg.startsWith("redisPort=")) {
                 redisPort = Integer.valueOf(arg.split("=")[1]);
             } else if (arg.startsWith("monitorTime=")) {
                 monitorTime = Integer.valueOf(arg.split("=")[1]) * 1000;
             } else if (arg.startsWith("clusterPort=")) {
                 clusterPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("monitorLogFilePath=")) {
-                monitorLogFilePath = arg.split("=")[1];
             } else if (arg.startsWith("ipFilter=")) {
                 ipFilter = arg.split("=")[1];
-            } else if (arg.startsWith("logFilePath=")) {
-                logFilePath = arg.split("=")[1];
-                bw = new BufferedWriter(new FileWriter(logFilePath));
-                Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            bw.close();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }));
-            } else if (arg.startsWith("keyPre=")) {
-                keyPre = arg.split("=")[1];
             } else {
                 System.out.println("helpInfo:" + helpInfo);
             }
