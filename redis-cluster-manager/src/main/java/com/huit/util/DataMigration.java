@@ -42,10 +42,7 @@ public class DataMigration {
     public static void main(String[] args) throws IOException {
 //        args = helpInfo.split(" ");
         parseArgs(args);
-
-        Jedis jedis = new Jedis(redisHost, redisPort);
-
-        printMigrationInfo(jedis);
+        printMigrationInfo();
 
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
         nodes.add(new HostAndPort(clusterHost, clusterPort));
@@ -55,19 +52,26 @@ public class DataMigration {
         poolConfig.setMinIdle(1);
         poolConfig.setMaxWaitMillis(30000);
         poolConfig.setTestWhileIdle(true);
-        JedisCluster cluster = new JedisCluster(nodes, 5000, 6, poolConfig);
+        final JedisCluster cluster = new JedisCluster(nodes, 5000, 6, poolConfig);
 
         long beginTime = System.currentTimeMillis();
-        for (Map.Entry<String, Long> db : dbSize.entrySet()) {
-            String dbKey = db.getKey();
+        for (final Map.Entry<String, Long> db : dbSize.entrySet()) {
+            final String dbKey = db.getKey();
             System.out.println("start to migration db:" + dbKey + "...");
-            migrationKeyOneHost(jedis, Integer.valueOf(dbKey.substring("db".length())), db.getValue(), keyPre, cluster);
+            Thread thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    migrationKeyOneHost(new Jedis(redisHost, redisPort), Integer.valueOf(dbKey.substring("db".length())), db.getValue(), keyPre, cluster);
+                }
+            }, "migration-db-" + dbKey);
+            thread.start();
         }
 
         System.out.println("scanTotalCount->" + scanTotalCount + " migrationCount->" + migrationTotalCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
     }
 
-    private static void printMigrationInfo(Jedis jedis) {
+    private static void printMigrationInfo() {
+        Jedis jedis = new Jedis(redisHost, redisPort);
         String info = jedis.info("Keyspace");
         System.out.println("migration db info begin");
         String[] infos = info.split("\r\n");
@@ -82,6 +86,7 @@ public class DataMigration {
                 System.out.println(s);
             }
         }
+        jedis.close();
         System.out.println("migration db info end");
     }
 
@@ -112,7 +117,7 @@ public class DataMigration {
                 thisScanSize++;
                 scanCount++;
                 if (thisScanSize % 1000 == 0) {
-                    System.out.println("thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisExportSize:" + thisExportSize
+                    System.out.println("migration db:" + db + "thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisExportSize:" + thisExportSize
                             + " totalUseTime:" + (System.currentTimeMillis() - beginTime) / 1000 + "s)");
                 }
 
@@ -132,14 +137,33 @@ public class DataMigration {
                 String clusterKey = db + "_" + key;
                 String keyType = nodeCli.type(key);
                 json.put("type", keyType);
+                long ttl = nodeCli.ttl(key);//读取key数据之前先得到key过期时间，防止在写数据的过程中数据过期
                 if ("hash".equals(keyType)) {
                     Map<String, String> value = nodeCli.hgetAll(key);
-                    cluster.hmset(clusterKey, value);
+                    if (null == value || value.size() == 0) {//数据刚好过期
+                        System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
+                        continue;
+                    }
                     json.put("value", value);
+                    try {
+                        cluster.hmset(clusterKey, value);
+                    } catch (Throwable e) {
+                        System.out.println("migrationError->key:" + key + " value:" + value);
+                        e.printStackTrace();
+                    }
                 } else if ("string".equals(keyType)) {
                     String value = nodeCli.get(key);
-                    cluster.set(clusterKey, value);
+                    if (null == value || value.length() == 0) {//数据刚好过期
+                        System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
+                        continue;
+                    }
                     json.put("value", value);
+                    try {
+                        cluster.set(clusterKey, value);
+                    } catch (Throwable e) {
+                        System.out.println("migrationError->key:" + key + " value:" + value);
+                        e.printStackTrace();
+                    }
                 } else if ("list".equals(keyType)) {
 //                    int readSize, readCount = 3;//大list且增删频繁导致分页处数据丢失或重复
 //                    long start = 0, end = start + readCount;
@@ -156,11 +180,21 @@ public class DataMigration {
 //                        end += readSize;
 //                    } while (readSize == readCount + 1);//-1 is the last element of the list
                     List<String> value = nodeCli.lrange(key, 0, -1);
-                    cluster.rpush(clusterKey, value.toArray(new String[0]));
+                    if (null == value || value.size() == 0) {//数据刚好过期
+                        System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
+                        continue;
+                    }
                     json.put("value", value);
+                    try {
+                        cluster.rpush(clusterKey, value.toArray(new String[0]));
+                    } catch (Throwable e) {
+                        System.out.println("migrationError->key:" + key + " value:" + value);
+                        e.printStackTrace();
+                    }
                 } else if ("set".equals(keyType)) {
                     String scursor = "0";
                     List<String> value = new ArrayList<String>();
+                    boolean isFirst = true;
                     do {
                         ScanResult<String> sscanResult = nodeCli.sscan(key, scursor, sp);
                         scursor = sscanResult.getStringCursor();
@@ -169,12 +203,26 @@ public class DataMigration {
                             value.add(data);
                             tmp.add(data);
                         }
-                        cluster.sadd(clusterKey, tmp.toArray(new String[0]));
+                        try {
+                            if (isFirst && (null == tmp || tmp.size() == 0)) {//第一次数据刚好过期
+                                System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
+                                continue;
+                            }
+                            if (null == tmp || tmp.size() > 0) {
+                                cluster.sadd(clusterKey, tmp.toArray(new String[0]));
+                            }
+                            isFirst = false;
+                        } catch (Throwable e) {
+                            System.out.println("migrationError->key:" + key + " value:" + tmp);
+                            e.printStackTrace();
+                        }
                     } while (!"0".equals(scursor));
+
                     json.put("value", value);
                 } else if ("zset".equals(keyType)) {
                     String zcursor = "0";
                     List<Map<String, Double>> value = new ArrayList();
+                    boolean isFirst = true;
                     do {
                         ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
                         zcursor = sscanResult.getStringCursor();
@@ -183,14 +231,25 @@ public class DataMigration {
                             dataJson.put(data.getElement(), data.getScore());
                             value.add(dataJson);
                         }
-                        cluster.zadd(clusterKey, dataJson);
+                        try {
+                            if (isFirst && (null == dataJson || dataJson.size() == 0)) {//第一次数据刚好过期
+                                System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
+                                continue;
+                            }
+                            if (null == dataJson || dataJson.size() > 0) {
+                                cluster.zadd(clusterKey, dataJson);
+                            }
+                            isFirst = false;
+                        } catch (Throwable e) {
+                            System.out.println("migrationError->key:" + key + " value:" + dataJson);
+                            e.printStackTrace();
+                        }
                     } while (!"0".equals(zcursor));
                     json.put("value", value);
                 } else if ("none".equals(keyType)) {//刚好过期的key,可以不用管
                 } else {
                     System.out.println("unknow keyType:" + keyType + " key:" + key);
                 }
-                long ttl = nodeCli.ttl(key);
                 if (ttl > 0) {//统一设置ttl时间
                     json.put("ttl", ttl);
                     cluster.expire(clusterKey, (int) ttl);
@@ -205,11 +264,12 @@ public class DataMigration {
         System.out.println("migration db:" + db + " success, scanCount->" + scanCount + " expireCount->" + (dbKeySize - migrationCount) + " migrationCount->" + migrationCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
         scanTotalCount += scanCount;
         migrationTotalCount += migrationCount;
+        nodeCli.close();
     }
 
     static BufferedWriter bw = null;
 
-    private static void writeLog(JSONObject json) {
+    private synchronized static void writeLog(JSONObject json) {
         if (null == bw) {
             return;
         }
