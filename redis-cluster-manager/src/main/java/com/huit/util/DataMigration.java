@@ -179,6 +179,7 @@ public class DataMigration {
                     }
                     json.put("value", value);
                 } else if ("list".equals(keyType)) {
+                    cluster.del(clusterKey);//list不能合并，必须要先删除老的key
                     int readSize, readCount = 10000;//大list且增删频繁导致分页处数据丢失或重复
                     long start = 0, end = start + readCount;
                     List<String> value = new ArrayList<String>();
