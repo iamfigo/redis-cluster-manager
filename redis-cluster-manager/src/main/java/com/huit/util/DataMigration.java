@@ -8,6 +8,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 数据从单实例迁移到集群
@@ -55,6 +56,7 @@ public class DataMigration {
         final JedisCluster cluster = new JedisCluster(nodes, 5000, 6, poolConfig);
 
         long beginTime = System.currentTimeMillis();
+        List<Thread> threadsAlive = new ArrayList<Thread>();
         for (final Map.Entry<String, Long> db : dbSize.entrySet()) {
             final String dbKey = db.getKey();
             System.out.println("start to migration db:" + dbKey + "...");
@@ -64,8 +66,11 @@ public class DataMigration {
                     migrationKeyOneHost(new Jedis(redisHost, redisPort), Integer.valueOf(dbKey.substring("db".length())), db.getValue(), keyPre, cluster);
                 }
             }, "migration-db-" + dbKey);
+            threadsAlive.add(thread);
             thread.start();
         }
+
+        RedisClusterManager.waitThread(threadsAlive);
 
         System.out.println("scanTotalCount->" + scanTotalCount + " migrationCount->" + migrationTotalCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
     }
@@ -96,7 +101,7 @@ public class DataMigration {
         sp.count(10000);
     }
 
-    static long scanTotalCount = 0, migrationTotalCount = 0;
+    static AtomicLong scanTotalCount = new AtomicLong(), migrationTotalCount = new AtomicLong();
 
 
     /**
@@ -166,7 +171,7 @@ public class DataMigration {
                 } else if ("string".equals(keyType)) {
                     String value = nodeCli.get(key);
                     try {
-                        if (null == value && value.length() > 0) {
+                        if (null != value && value.length() > 0) {
                             cluster.set(clusterKey, value);
                         }
                     } catch (Throwable e) {
@@ -257,8 +262,8 @@ public class DataMigration {
         } while ((!"0".equals(cursor)));
 
         System.out.println("migration db:" + db + " success, scanCount->" + scanCount + " expireCount->" + (dbKeySize - migrationCount) + " migrationCount->" + migrationCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
-        scanTotalCount += scanCount;
-        migrationTotalCount += migrationCount;
+        scanTotalCount.addAndGet(scanCount);
+        migrationTotalCount.addAndGet(migrationCount);
         nodeCli.close();
     }
 
