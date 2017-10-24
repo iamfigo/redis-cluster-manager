@@ -1,11 +1,9 @@
 package com.huit.util;
 
-import com.alibaba.fastjson.JSONObject;
 import redis.clients.jedis.*;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 数据从单实例迁移到集群数据一致性检查工具
@@ -79,8 +77,8 @@ public class DataMigrationCheck {
                     String newValue = clusterValue.get(trimValue(cmdInfo[i]));
                     if (oldValue.contains("\\x")) {
                         //目前16进制未处理
-                        System.out.println("syncNotSure->old:" + oldValue + " new:" + clusterKey);
-                        continue;
+                        System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + clusterKey);
+                        return;
                     }
                     if (!oldValue.equals(newValue)) {
                         isSync = false;
@@ -97,7 +95,7 @@ public class DataMigrationCheck {
                 String oldValue = trimValue(cmdInfo[2]);
                 if (oldValue.contains("\\x")) {
                     //目前16进制未处理
-                    System.out.println("syncNotSure->old:" + oldValue + " new:" + clusterKey);
+                    System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + clusterValue);
                     return;
                 }
                 if (!oldValue.equals(clusterValue)) {
@@ -106,14 +104,20 @@ public class DataMigrationCheck {
                     System.out.println("sync:" + data);
                 }
             } else if ("expire".equals(cmd)) {
-
+                Long clusterValue = cluster.ttl(clusterKey);
+                String oldValue = trimValue(cmdInfo[2]);
+                if (Long.valueOf(oldValue) - clusterValue >= 1) {//超过一1秒肯定不正常
+                    System.out.println("notSync:" + data + "->clusterValue:" + clusterValue);
+                } else {
+                    System.out.println("sync:" + data);
+                }
             } else if ("zadd".equals(cmd)) {
                 boolean isSync = true;
                 for (int i = 2; i < cmdInfo.length; i += 2) {
                     String oldValue = trimValue(cmdInfo[i + 1]);
                     if (oldValue.contains("\\x")) {
                         //目前16进制未处理
-                        System.out.println("syncNotSure->old:" + oldValue + " new:" + clusterKey);
+                        System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + clusterKey);
                         return;
                     }
                     if (Double.valueOf(trimValue(cmdInfo[i])) == cluster.zscore(clusterKey, oldValue)) {
@@ -132,7 +136,7 @@ public class DataMigrationCheck {
                     String oldValue = trimValue(cmdInfo[i]);
                     if (oldValue.contains("\\x")) {
                         //目前16进制未处理
-                        System.out.println("syncNotSure->old:" + oldValue + " new:" + clusterKey);
+                        System.out.println("syncNotSure:data:" + data + "->old:" + oldValue);
                         return;
                     }
                     if (!cluster.sismember(clusterKey, oldValue)) {
