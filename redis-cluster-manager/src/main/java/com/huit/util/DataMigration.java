@@ -118,7 +118,7 @@ public class DataMigration {
             List<String> result = keys.getResult();
             for (String key : result) {
                 thisScanCount++;
-                if (thisScanCount % 1000 == 0) {
+                if (thisScanCount % 5000 == 0) {
                     System.out.println("migration db:" + db + " thisScanSize:" + thisScanCount + "/" + dbKeySize + " thisMigrationSize:" + thisMigrationCount
                             + " thisErrorCount:" + thisErrorCount + " thisUseTime:" + (System.currentTimeMillis() - beginTime) / 1000 + "s)");
                 }
