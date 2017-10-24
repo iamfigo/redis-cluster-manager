@@ -1,6 +1,5 @@
 package com.huit.util;
 
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import redis.clients.jedis.*;
 
@@ -72,7 +71,7 @@ public class DataMigration {
 
         RedisClusterManager.waitThread(threadsAlive);
 
-        System.out.println("scanTotalCount->" + scanTotalCount + " migrationCount->" + migrationTotalCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
+        System.out.println("scanTotalCount->" + scanTotalCount + " migrationTotalCount->" + migrationTotalCount + " errorTotalCount->" + errorTotalCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
     }
 
     private static void printMigrationInfo() {
@@ -101,7 +100,7 @@ public class DataMigration {
         sp.count(10000);
     }
 
-    static AtomicLong scanTotalCount = new AtomicLong(), migrationTotalCount = new AtomicLong();
+    static AtomicLong scanTotalCount = new AtomicLong(), migrationTotalCount = new AtomicLong(), errorTotalCount = new AtomicLong();
 
 
     /**
@@ -113,7 +112,7 @@ public class DataMigration {
         long scanCount = 0, migrationCount = 0;
         long beginTime = System.currentTimeMillis();
         String cursor = "0";
-        long thisScanSize = 0, thisExportSize = 0;
+        long thisScanSize = 0, thisMigrationSize = 0, thisErrorCount = 0;
         do {
             ScanResult<String> keys = nodeCli.scan(cursor, sp);
             cursor = keys.getStringCursor();
@@ -122,8 +121,8 @@ public class DataMigration {
                 thisScanSize++;
                 scanCount++;
                 if (thisScanSize % 1000 == 0) {
-                    System.out.println("migration db:" + db + " thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisExportSize:" + thisExportSize
-                            + " totalUseTime:" + (System.currentTimeMillis() - beginTime) / 1000 + "s)");
+                    System.out.println("migration db:" + db + " thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisMigrationSize:" + thisMigrationSize
+                            + " thisErrorCount:" + thisErrorCount + " thisUseTime:" + (System.currentTimeMillis() - beginTime) / 1000 + "s)");
                 }
 
                 boolean isExport = false;
@@ -162,6 +161,7 @@ public class DataMigration {
                                 cluster.hmset(clusterKey, temp);
                                 value.putAll(temp);
                             } catch (Throwable e) {
+                                thisErrorCount++;
                                 System.out.println("migrationError->key:" + key + " type:" + keyType + " value:" + temp);
                                 e.printStackTrace();
                             }
@@ -175,6 +175,7 @@ public class DataMigration {
                             cluster.set(clusterKey, value);
                         }
                     } catch (Throwable e) {
+                        thisErrorCount++;
                         System.out.println("migrationError->key:" + key + " value:" + value);
                         e.printStackTrace();
                     }
@@ -197,6 +198,7 @@ public class DataMigration {
                                 value.addAll(temp);
                             }
                         } catch (Throwable e) {
+                            thisErrorCount++;
                             System.out.println("migrationError->key:" + key + " type:" + keyType + " value:" + temp);
                             e.printStackTrace();
                         }
@@ -220,6 +222,7 @@ public class DataMigration {
                                 value.addAll(temp);
                             }
                         } catch (Throwable e) {
+                            thisErrorCount++;
                             System.out.println("migrationError->key:" + key + " value:" + temp);
                             e.printStackTrace();
                         }
@@ -236,11 +239,12 @@ public class DataMigration {
                             temp.put(data.getElement(), data.getScore());
                         }
                         try {
-                            if (null == temp || temp.size() > 0) {
+                            if (null != temp && temp.size() > 0) {
                                 cluster.zadd(clusterKey, temp);
                                 value.add(temp);
                             }
                         } catch (Throwable e) {
+                            thisErrorCount++;
                             System.out.println("migrationError->key:" + key + " value:" + temp);
                             e.printStackTrace();
                         }
@@ -254,7 +258,7 @@ public class DataMigration {
                     json.put("ttl", ttl);
                     cluster.expire(clusterKey, (int) ttl);
                 }
-                thisExportSize++;
+                thisMigrationSize++;
                 migrationCount++;
 
                 writeLog(json);
@@ -264,6 +268,7 @@ public class DataMigration {
         System.out.println("migration db:" + db + " success, scanCount->" + scanCount + " expireCount->" + (dbKeySize - migrationCount) + " migrationCount->" + migrationCount + " useTime->" + ((System.currentTimeMillis() - beginTime) / 1000) + "s");
         scanTotalCount.addAndGet(scanCount);
         migrationTotalCount.addAndGet(migrationCount);
+        errorTotalCount.addAndGet(thisErrorCount++);
         nodeCli.close();
     }
 
