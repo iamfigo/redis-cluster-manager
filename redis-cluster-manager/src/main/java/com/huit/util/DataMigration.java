@@ -151,8 +151,7 @@ public class DataMigration {
                         hcursor = hscanResult.getStringCursor();
                         Map temp = new HashMap();
                         for (Map.Entry<String, String> entry : hscanResult.getResult()) {
-                            temp.put("key", entry.getKey());
-                            temp.put("value", entry.getValue());
+                            temp.put(entry.getKey(), entry.getValue());
                         }
                         if (temp.size() > 0) {
                             try {
