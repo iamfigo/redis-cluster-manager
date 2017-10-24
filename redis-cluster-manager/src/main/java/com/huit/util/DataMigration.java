@@ -1,12 +1,12 @@
 package com.huit.util;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import redis.clients.jedis.*;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -117,7 +117,7 @@ public class DataMigration {
                 thisScanSize++;
                 scanCount++;
                 if (thisScanSize % 1000 == 0) {
-                    System.out.println("migration db:" + db + "thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisExportSize:" + thisExportSize
+                    System.out.println("migration db:" + db + " thisScanSize:" + thisScanSize + "/" + dbKeySize + " thisExportSize:" + thisExportSize
                             + " totalUseTime:" + (System.currentTimeMillis() - beginTime) / 1000 + "s)");
                 }
 
@@ -134,114 +134,109 @@ public class DataMigration {
 
                 JSONObject json = new JSONObject();
                 json.put("key", key);
+                json.put("db", db);
                 String clusterKey = db + "_" + key;
                 String keyType = nodeCli.type(key);
                 json.put("type", keyType);
-                long ttl = nodeCli.ttl(key);//读取key数据之前先得到key过期时间，防止在写数据的过程中数据过期
+                long ttl = nodeCli.ttl(key);//读取key数据之前先得到key过期时间，防止在写数据的过程中出现数据过期
                 if ("hash".equals(keyType)) {
-                    Map<String, String> value = nodeCli.hgetAll(key);
-                    if (null == value || value.size() == 0) {//数据刚好过期
-                        System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
-                        continue;
-                    }
+                    //nodeCli.hgetAll(key);//大key read time out
+                    //cluster.hmset(clusterKey, value);//大key ERR Protocol error: invalid multibulk length
+                    Map value = new HashMap();
+                    String hcursor = "0";
+                    do {
+                        ScanResult<Map.Entry<String, String>> hscanResult = nodeCli.hscan(key, hcursor, sp);
+                        hcursor = hscanResult.getStringCursor();
+                        Map temp = new HashMap();
+                        for (Map.Entry<String, String> entry : hscanResult.getResult()) {
+                            temp.put("key", entry.getKey());
+                            temp.put("value", entry.getValue());
+                        }
+                        if (temp.size() > 0) {
+                            try {
+                                cluster.hmset(clusterKey, temp);
+                                value.putAll(temp);
+                            } catch (Throwable e) {
+                                System.out.println("migrationError->key:" + key + " type:" + keyType + " value:" + temp);
+                                e.printStackTrace();
+                            }
+                        }
+                    } while (!"0".equals(hcursor));
                     json.put("value", value);
-                    try {
-                        cluster.hmset(clusterKey, value);
-                    } catch (Throwable e) {
-                        System.out.println("migrationError->key:" + key + " value:" + value);
-                        e.printStackTrace();
-                    }
                 } else if ("string".equals(keyType)) {
                     String value = nodeCli.get(key);
-                    if (null == value || value.length() == 0) {//数据刚好过期
-                        System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
-                        continue;
-                    }
-                    json.put("value", value);
                     try {
-                        cluster.set(clusterKey, value);
+                        if (null == value && value.length() > 0) {
+                            cluster.set(clusterKey, value);
+                        }
                     } catch (Throwable e) {
                         System.out.println("migrationError->key:" + key + " value:" + value);
                         e.printStackTrace();
                     }
+                    json.put("value", value);
                 } else if ("list".equals(keyType)) {
-//                    int readSize, readCount = 3;//大list且增删频繁导致分页处数据丢失或重复
-//                    long start = 0, end = start + readCount;
-//                    List<String> value = new ArrayList<String>();
-//                    do {
-//                        List<String> data = nodeCli.lrange(key, start, end);
-//                        readSize = data.size();
-//                        for (int i = 0; i < readSize; i++) {
-//                            String valueStr = data.get(i);
-//                            value.add(valueStr);
-//                            cluster.rpush(clusterKey, valueStr);
-//                        }
-//                        start = end + 1;
-//                        end += readSize;
-//                    } while (readSize == readCount + 1);//-1 is the last element of the list
-                    List<String> value = nodeCli.lrange(key, 0, -1);
-                    if (null == value || value.size() == 0) {//数据刚好过期
-                        System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
-                        continue;
-                    }
+                    int readSize, readCount = 10000;//大list且增删频繁导致分页处数据丢失或重复
+                    long start = 0, end = start + readCount;
+                    List<String> value = new ArrayList<String>();
+                    do {
+                        List<String> data = nodeCli.lrange(key, start, end);
+                        readSize = data.size();
+                        List<String> temp = new ArrayList<String>();
+                        for (int i = 0; i < readSize; i++) {
+                            String valueStr = data.get(i);
+                            temp.add(valueStr);
+                        }
+                        try {
+                            if (temp.size() > 0) {
+                                cluster.rpush(clusterKey, temp.toArray(new String[0]));
+                                value.addAll(temp);
+                            }
+                        } catch (Throwable e) {
+                            System.out.println("migrationError->key:" + key + " type:" + keyType + " value:" + temp);
+                            e.printStackTrace();
+                        }
+                        start = end + 1;
+                        end += readSize;
+                    } while (readSize == readCount + 1);//-1 is the last element of the list
                     json.put("value", value);
-                    try {
-                        cluster.rpush(clusterKey, value.toArray(new String[0]));
-                    } catch (Throwable e) {
-                        System.out.println("migrationError->key:" + key + " value:" + value);
-                        e.printStackTrace();
-                    }
                 } else if ("set".equals(keyType)) {
                     String scursor = "0";
                     List<String> value = new ArrayList<String>();
-                    boolean isFirst = true;
                     do {
                         ScanResult<String> sscanResult = nodeCli.sscan(key, scursor, sp);
                         scursor = sscanResult.getStringCursor();
-                        List<String> tmp = new ArrayList<String>(sscanResult.getResult().size());
+                        List<String> temp = new ArrayList<String>(sscanResult.getResult().size());
                         for (String data : sscanResult.getResult()) {
-                            value.add(data);
-                            tmp.add(data);
+                            temp.add(data);
                         }
                         try {
-                            if (isFirst && (null == tmp || tmp.size() == 0)) {//第一次数据刚好过期
-                                System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
-                                continue;
+                            if (temp.size() > 0) {
+                                cluster.sadd(clusterKey, temp.toArray(new String[0]));
+                                value.addAll(temp);
                             }
-                            if (null == tmp || tmp.size() > 0) {
-                                cluster.sadd(clusterKey, tmp.toArray(new String[0]));
-                            }
-                            isFirst = false;
                         } catch (Throwable e) {
-                            System.out.println("migrationError->key:" + key + " value:" + tmp);
+                            System.out.println("migrationError->key:" + key + " value:" + temp);
                             e.printStackTrace();
                         }
                     } while (!"0".equals(scursor));
-
                     json.put("value", value);
                 } else if ("zset".equals(keyType)) {
                     String zcursor = "0";
                     List<Map<String, Double>> value = new ArrayList();
-                    boolean isFirst = true;
                     do {
                         ScanResult<Tuple> sscanResult = nodeCli.zscan(key, zcursor, sp);
                         zcursor = sscanResult.getStringCursor();
-                        Map<String, Double> dataJson = new HashMap<String, Double>();
+                        Map<String, Double> temp = new HashMap<String, Double>();
                         for (Tuple data : sscanResult.getResult()) {
-                            dataJson.put(data.getElement(), data.getScore());
-                            value.add(dataJson);
+                            temp.put(data.getElement(), data.getScore());
                         }
                         try {
-                            if (isFirst && (null == dataJson || dataJson.size() == 0)) {//第一次数据刚好过期
-                                System.out.println("migrationDataExpired->key:" + key + " type:" + keyType);
-                                continue;
+                            if (null == temp || temp.size() > 0) {
+                                cluster.zadd(clusterKey, temp);
+                                value.add(temp);
                             }
-                            if (null == dataJson || dataJson.size() > 0) {
-                                cluster.zadd(clusterKey, dataJson);
-                            }
-                            isFirst = false;
                         } catch (Throwable e) {
-                            System.out.println("migrationError->key:" + key + " value:" + dataJson);
+                            System.out.println("migrationError->key:" + key + " value:" + temp);
                             e.printStackTrace();
                         }
                     } while (!"0".equals(zcursor));
