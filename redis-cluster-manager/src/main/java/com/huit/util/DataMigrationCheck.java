@@ -238,6 +238,6 @@ public class DataMigrationCheck {
                 System.out.println("helpInfo:" + helpInfo);
             }
         }
-        System.out.println("input args->redisHost:" + redisHost + " redisPort:" + redisPort + " clusterHost:" + clusterHost + " clusterPort:" + clusterPort + " monitorTime:" + monitorTime + " logFilePath:" + logFilePath);
+        System.out.println("input args->redisHost:" + redisHost + " redisPort:" + redisPort + " clusterHost:" + clusterHost + " clusterPort:" + clusterPort + " ipFilter:" + ipFilter + " monitorTime:" + monitorTime);
     }
 }
