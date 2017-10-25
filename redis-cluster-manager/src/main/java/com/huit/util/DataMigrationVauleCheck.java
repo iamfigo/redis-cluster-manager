@@ -58,20 +58,25 @@ public class DataMigrationVauleCheck {
 
             if ("hash".equals(type)) {
                 Map<String, String> newValue = cluster.hgetAll(clusterKey);
-                Map<String, String> oldValue = old.hgetAll(db + "_" + key);
+                Map<String, String> oldValue = old.hgetAll(key);
+                boolean isSync = true;
                 for (Map.Entry<String, String> entry : newValue.entrySet()) {
-                    String old = oldValue.get(entry.getKey());
+                    String filed = entry.getKey();
+                    String old = oldValue.get(filed);
                     if (!entry.getValue().equals(old)) {
-                        System.out.println("notSync->key:" + key + " old:" + old + " new:" + entry.getValue());
+                        isSync = false;
+                        System.out.println("notSyncHash->key:" + key + " filed:" + filed + " old:" + old + " new:" + entry.getValue());
                         break;
                     }
                 }
-                System.out.println("sync->key:" + key);
+                if (isSync) {
+                    System.out.println("sync->key:" + key);
+                }
             } else if ("string".equals(type)) {
                 String oldVaule = old.get(key);
                 String newVaule = cluster.get(clusterKey);
                 if (!oldVaule.equals(newVaule)) {
-                    System.out.println("notSync->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
+                    System.out.println("notSyncsString->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
                 } else {
                     System.out.println("sync->key:" + key);
                 }
@@ -79,7 +84,7 @@ public class DataMigrationVauleCheck {
                 long oldVaule = old.scard(key);
                 long newVaule = cluster.scard(clusterKey);
                 if (oldVaule != newVaule) {
-                    System.out.println("notSync->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
+                    System.out.println("notSyncSet->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
                 } else {
                     System.out.println("sync->key:" + key);
                 }
@@ -87,7 +92,7 @@ public class DataMigrationVauleCheck {
                 long oldVaule = old.llen(key);
                 long newVaule = cluster.llen(clusterKey);
                 if (oldVaule != newVaule) {
-                    System.out.println("notSync->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
+                    System.out.println("notSyncList->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
                 } else {
                     System.out.println("sync->key:" + key);
                 }
@@ -102,7 +107,7 @@ public class DataMigrationVauleCheck {
                 long oldVaule = old.zcard(key);
                 long newVaule = cluster.zcard(clusterKey);
                 if (oldVaule != newVaule) {
-                    System.out.println("notSync->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
+                    System.out.println("notSyncZset->key:" + key + " old Size:" + oldVaule + " new Size:" + newVaule);
                 } else {
                     System.out.println("sync->key:" + key);
                 }
