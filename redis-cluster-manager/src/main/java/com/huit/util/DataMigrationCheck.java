@@ -6,7 +6,7 @@ import java.io.*;
 import java.util.*;
 
 /**
- * 数据从单实例迁移到集群数据一致性检查工具
+ * 数据从单实例迁移到集群数据双写一致性检查工具
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationCheck {
