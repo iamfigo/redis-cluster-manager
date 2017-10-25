@@ -116,7 +116,7 @@ public class DataMigrationCheck {
                     System.out.println("keyNotExist:" + data);
                     return;
                 }
-                if (Long.valueOf(oldValue) - clusterValue >= 1) {//超过一1秒肯定不正常
+                if (Long.valueOf(oldValue) - clusterValue >= 5) {//超过一1秒肯定不正常
                     System.out.println("notSync:" + data + "->clusterValue:" + clusterValue);
                 } else {
                     System.out.println("sync:" + data);
