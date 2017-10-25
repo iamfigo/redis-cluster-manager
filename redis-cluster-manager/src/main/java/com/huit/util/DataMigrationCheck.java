@@ -71,7 +71,6 @@ public class DataMigrationCheck {
 
             if ("hmset".equals(cmd)) {
                 Map<String, String> clusterValue = cluster.hgetAll(clusterKey);
-                boolean isSync = true;
                 for (int i = 2; i < cmdInfo.length; i += 2) {
                     String oldValue = trimValue(cmdInfo[i + 1]);
                     String newValue = clusterValue.get(trimValue(cmdInfo[i]));
@@ -81,15 +80,12 @@ public class DataMigrationCheck {
                         return;
                     }
                     if (!oldValue.equals(newValue)) {
-                        isSync = false;
-                        break;
+                        System.out.println("notSync:data:" + data + "->old:" + oldValue + " new:" + newValue);
+                        return;
                     }
                 }
-                if (!isSync) {
-                    System.out.println("notSync:" + data);
-                } else {
-                    System.out.println("sync:" + data);
-                }
+
+                System.out.println("sync:" + data);
             } else if ("set".equals(cmd)) {
                 String clusterValue = cluster.get(clusterKey);
                 String oldValue = trimValue(cmdInfo[2]);
@@ -108,6 +104,7 @@ public class DataMigrationCheck {
                 String oldValue = trimValue(cmdInfo[2]);
                 if (-2 == clusterValue) {//没有key
                     System.out.println("keyNotExist:" + data);
+                    return;
                 }
                 if (Long.valueOf(oldValue) - clusterValue >= 1) {//超过一1秒肯定不正常
                     System.out.println("notSync:" + data + "->clusterValue:" + clusterValue);
