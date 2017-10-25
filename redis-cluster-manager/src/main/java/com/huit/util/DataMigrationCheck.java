@@ -16,6 +16,7 @@ public class DataMigrationCheck {
     private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 ipFilter=127.0.0.1 monitorTime=100";
 
     static JedisCluster cluster;
+    static Jedis old;
 
     public static void main(String[] args) throws IOException {
 //        args = helpInfo.split(" ");
@@ -29,6 +30,7 @@ public class DataMigrationCheck {
         poolConfig.setMaxWaitMillis(30000);
         poolConfig.setTestWhileIdle(true);
         cluster = new JedisCluster(nodes, 5000, 6, poolConfig);
+        old = new Jedis(redisHost, redisPort);
 
         onlineMonitor();
     }
@@ -86,6 +88,14 @@ public class DataMigrationCheck {
                 }
 
                 System.out.println("sync:" + data);
+            } else if ("del".equals(cmd)) {
+                String clusterValue = cluster.type(clusterKey);
+                if (!"none".equals(clusterValue)) {//没有被删除
+                    System.out.println("notSync:" + data + "->clusterValue:" + clusterValue);
+                    return;
+                } else {
+                    System.out.println("sync:" + data);
+                }
             } else if ("set".equals(cmd)) {
                 String clusterValue = cluster.get(clusterKey);
                 String oldValue = trimValue(cmdInfo[2]);
@@ -120,7 +130,9 @@ public class DataMigrationCheck {
                         System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + clusterKey);
                         return;
                     }
-                    if (Double.valueOf(trimValue(cmdInfo[i])) == cluster.zscore(clusterKey, oldValue)) {
+                    double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
+                    double clusterScore = cluster.zscore(clusterKey, oldValue);
+                    if (oldScore != clusterScore) {
                         isSync = false;
                         break;
                     }
@@ -139,7 +151,7 @@ public class DataMigrationCheck {
                         System.out.println("syncNotSure:data:" + data + "->old:" + oldValue);
                         return;
                     }
-                    if (!cluster.sismember(clusterKey, oldValue)) {
+                    if (!cluster.sismember(clusterKey, oldValue) && old.sismember(trimValue(cmdInfo[1]), oldValue)) {//高并发情况下可能被移出
                         isSync = false;
                         break;
                     }
