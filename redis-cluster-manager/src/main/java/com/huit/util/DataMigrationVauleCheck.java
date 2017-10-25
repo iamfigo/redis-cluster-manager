@@ -96,7 +96,7 @@ public class DataMigrationVauleCheck {
                 if ("none".equals(clusterType)) {
                     System.out.println("sync->key:" + key);
                 } else {
-                    System.out.println("notSync->key:" + key + " old delte, new key type:" + clusterType);
+                    System.out.println("notSync->key:" + key + " old delete, new key type:" + clusterType);
                 }
             } else if ("zset".equals(type)) {
                 long oldVaule = old.zcard(key);
