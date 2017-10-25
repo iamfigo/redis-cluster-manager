@@ -66,7 +66,7 @@ public class DataMigrationCheck {
             return;
         }
 
-        if (cmdInfo.length >= 1) {
+        if (cmdInfo.length >= 2) {
             String cmd = trimValue(cmdInfo[0]).toLowerCase();
             String oldKey = cmdInfo[1].replace("\"", "");
             String clusterKey = db + "_" + oldKey;
