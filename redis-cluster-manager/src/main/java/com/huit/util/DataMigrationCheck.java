@@ -36,7 +36,11 @@ public class DataMigrationCheck {
     }
 
     private static String trimValue(String value) {
-        return value.substring(1, value.length() - 1).replace("\\\"", "\"");
+        if (value.length() >= 2) {
+            return value.substring(1, value.length() - 1).replace("\\\"", "\"");
+        } else {
+            return value;
+        }
     }
 
 
