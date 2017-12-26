@@ -36,7 +36,7 @@ public class MonitorUtil {
 	static int showTop = 10, port = SystemConf.get("REDIS_PORT", Integer.class);
 	static String filePath = "", ipFilter = "", cmdFilter = "", host = SystemConf.get("REDIS_HOST");
 	static long monitorTime = 0;
-	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 maxCountLine=5";
+	public static String helpInfo = "ipFilter=10.0 cmdFilter=ZREVRANGE isKeyStat=true isCmdDetail=true showTop=1000 host=172.20.16.48 port=5001 monitorTime=5";
 
 	public static void main(String[] args) throws Exception {
 //		args = "filePath=D:/20171019.log isKeyStat=true showTop=5".split(" ");
@@ -68,7 +68,7 @@ public class MonitorUtil {
 				host = arg.split("=")[1];
 			} else if (arg.startsWith("port=")) {
 				port = Integer.valueOf(arg.split("=")[1]);
-			} else if (arg.startsWith("maxCountLine=")) {
+			} else if (arg.startsWith("monitorTime=")) {
 				monitorTime = Long.valueOf(arg.split("=")[1]) * 1000;
 			} else {
 				System.out.println(helpInfo);
