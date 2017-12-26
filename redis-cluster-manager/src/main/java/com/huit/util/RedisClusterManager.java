@@ -1492,7 +1492,8 @@ public class RedisClusterManager {
                 rcm.opt(args);
             } else if ("get".equals(cmd)) {
                 rcm.opt(args);
-            } else if ("keys".equals(cmd)) {
+            } else if (("" +
+                    "").equals(cmd)) {
                 if (args.length == 1) {
                     System.out.println("请输入要查詢的key前缀");
                 } else {
@@ -2155,7 +2156,7 @@ public class RedisClusterManager {
         System.out.println("exporth \t:[keyPattern][outputFilePath] export one host data, use * to export all");
         System.out.println("export-keys \t:[key1,key2][outputFilePath]");
         System.out.println("export-keys-file \t:[input keys file][outputFilePath]");
-        System.out.println("failover \t:[host:port;host2:port2] slave failover");
+        System.out.println("failover \t:[slaveHost:slavePort;slaveHos2:slavePort2] slave failover");
         System.out.println("fix-slot-cover \t:[host:port] use one node to fix uncovered slot ");
         System.out.println("fix-slot-stable \t:clear any importing / migrating state from hash slot");
         System.out.println("flush \t:use flushall to clean cluster all data (be careful!)");
