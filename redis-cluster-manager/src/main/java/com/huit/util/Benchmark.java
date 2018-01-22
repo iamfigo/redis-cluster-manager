@@ -21,7 +21,7 @@ public class Benchmark {
     private static AtomicLong readCount = new AtomicLong();
     private static AtomicLong lastReadCount = new AtomicLong();
     private static AtomicLong readNotFoundCount = new AtomicLong();
-    private static long writeBeginTime = System.currentTimeMillis(), readBeginTime, lastCountTime;
+    private static AtomicLong writeBeginTime, readBeginTime, lastCountTime = new AtomicLong();
     private static long totalCount;
 
     public static void main(String[] args) {
@@ -46,6 +46,7 @@ public class Benchmark {
                 optType = args[5];
             }
             totalCount = limit - offset;
+            writeBeginTime = new AtomicLong(System.currentTimeMillis());
             for (int i = 0; i < threadNum; i++) {
                 String threadName = "thread_" + (10 + i);
                 TestClass thread = new TestClass(threadName, key, value, offset + i * limit / threadNum, offset + (i + 1)
@@ -78,13 +79,13 @@ public class Benchmark {
             if ("set".equals(optType) || "all".equals(optType)) {
                 set();
             }
+            readBeginTime = new AtomicLong(System.currentTimeMillis());
             if ("get".equals(optType) || "all".equals(optType)) {
                 get();
             }
         }
 
         private void get() {
-            readBeginTime = System.currentTimeMillis();
             for (long i = offset; i <= limit; i++) {
                 String value = cluster.get(key + i);
                 if (value == null) {
@@ -93,17 +94,17 @@ public class Benchmark {
                 }
                 long count = readCount.incrementAndGet();
                 if (count % 50000 == 0) {
-                    if (lastCountTime > 0) {
-                        long useTime = System.currentTimeMillis() - lastCountTime;
+                    if (lastCountTime.get() > 0) {
+                        long useTime = System.currentTimeMillis() - lastCountTime.get();
                         System.out.println("get count:" + count + " speed:"
                                 + ((count - lastReadCount.get()) / (useTime / 1000.0)));
                     }
-                    lastCountTime = System.currentTimeMillis();
+                    lastCountTime.set(System.currentTimeMillis());
                     lastReadCount.set(count);
                 }
             }
             if (readCount.get() == totalCount) {
-                long useTime = System.currentTimeMillis() - readBeginTime;
+                long useTime = System.currentTimeMillis() - readBeginTime.get();
                 System.out.println("get total:" + totalCount + " speed:" + totalCount / (useTime / 1000.0));
                 System.out.println("read not found count:" + readNotFoundCount);
             }
@@ -127,12 +128,12 @@ public class Benchmark {
                         errorCount = 0;
                         long count = writeCount.incrementAndGet();
                         if (count % 50000 == 0) {
-                            if (lastCountTime > 0) {
-                                long useTime = System.currentTimeMillis() - lastCountTime;
+                            if (lastCountTime.get() > 0) {
+                                long useTime = System.currentTimeMillis() - lastCountTime.get();
                                 System.out.println("set count:" + count + " speed:"
                                         + ((count - lastWriteCount.get()) / (useTime / 1000.0)));
                             }
-                            lastCountTime = System.currentTimeMillis();
+                            lastCountTime.set(System.currentTimeMillis());
                             lastWriteCount.set(count);
                         }
                     } catch (Throwable e) {
@@ -158,7 +159,7 @@ public class Benchmark {
             }
 
             if (writeCount.get() == totalCount) {
-                long useTime = System.currentTimeMillis() - writeBeginTime;
+                long useTime = System.currentTimeMillis() - writeBeginTime.get();
                 System.out.println("set total:" + totalCount + " speed:" + totalCount / (useTime / 1000.0));
             }
         }
