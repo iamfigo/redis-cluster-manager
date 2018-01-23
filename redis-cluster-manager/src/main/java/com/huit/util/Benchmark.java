@@ -22,7 +22,7 @@ public class Benchmark {
     private static AtomicLong lastReadCount = new AtomicLong();
     private static AtomicLong readNotFoundCount = new AtomicLong();
     private static AtomicLong writeBeginTime, writeEndTime, readBeginTime, lastCountTime = new AtomicLong();
-    private static long totalCount;
+    private static volatile long totalCount;
 
     public static void main(String[] args) {
         if (args.length > 0 && args[0].equals("h")) {
@@ -103,7 +103,7 @@ public class Benchmark {
                     lastReadCount.set(count);
                 }
             }
-            if (readCount.get() == totalCount) {
+            if (readCount.get() >= totalCount) {
                 long useTime = System.currentTimeMillis() - readBeginTime.get();
                 System.out.println("get total:" + totalCount + " speed:" + totalCount / (useTime / 1000.0));
                 printWriteSpeed();
@@ -159,7 +159,7 @@ public class Benchmark {
                 }
             }
 
-            if (writeCount.get() == totalCount) {
+            if (writeCount.get() >= totalCount) {
                 writeEndTime = new AtomicLong(System.currentTimeMillis());
                 printWriteSpeed();
             }
