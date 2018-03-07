@@ -1241,7 +1241,6 @@ public class RedisClusterManager {
                             for (String keyExport : exportKeyPre) {
                                 if ("*".equals(keyExport) || key.startsWith(keyExport)) {
                                     nodeCli.del(key);
-                                    writeCount.incrementAndGet();
                                     writeFile(key, "del", filePath);
                                     break;
                                 }
