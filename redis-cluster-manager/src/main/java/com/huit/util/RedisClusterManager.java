@@ -28,7 +28,7 @@ public class RedisClusterManager {
     static ScanParams sp = new ScanParams();
 
     static {
-        sp.count(10000);
+        sp.count(1000);
     }
 
     private static void connectCluser() {
@@ -1237,9 +1237,11 @@ public class RedisClusterManager {
                         cursor = keys.getStringCursor();
                         List<String> result = keys.getResult();
                         for (String key : result) {
+                            scanCount.incrementAndGet();
                             for (String keyExport : exportKeyPre) {
                                 if ("*".equals(keyExport) || key.startsWith(keyExport)) {
                                     nodeCli.del(key);
+                                    writeCount.incrementAndGet();
                                     writeFile(key, "del", filePath);
                                     break;
                                 }
@@ -1247,7 +1249,7 @@ public class RedisClusterManager {
                         }
                     } while ((!"0".equals(cursor)));
                 }
-            }, entry.getKey() + "del thread");
+            }, entry.getKey() + "-del thread");
             exportTheadList.add(exportThread);
             exportThread.start();
         }
@@ -1256,8 +1258,8 @@ public class RedisClusterManager {
 
         long useTime = System.currentTimeMillis() - writeBeginTime, totalCount = scanCount.get();
         float speed = (float) (totalCount / (useTime / 1000.0));
-        System.out.println("del total:" + totalCount + " speed:" + speedFormat.format(speed) + " useTime:"
-                + (useTime / 1000.0) + "s");
+        System.out.println("scanCount:" + scanCount.get() + " delTotal:" + writeCount.get()
+                + " speed:" + speedFormat.format(speed) + " useTime:" + (useTime / 1000.0) + "s");
 
         try {
             if (null != bw) {
