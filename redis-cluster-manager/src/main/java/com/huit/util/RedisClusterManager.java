@@ -889,6 +889,7 @@ public class RedisClusterManager {
         int count = 0;
         long beginTime = System.currentTimeMillis();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String host = nodeInfo[1].split(":")[0];
             int port = Integer.valueOf(nodeInfo[1].split(":")[1]);
@@ -921,6 +922,7 @@ public class RedisClusterManager {
         int count = 0;
         long beginTime = System.currentTimeMillis();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String host = nodeInfo[1].split(":")[0];
             int port = Integer.valueOf(nodeInfo[1].split(":")[1]);
@@ -1155,6 +1157,7 @@ public class RedisClusterManager {
         int count = 0;
         long beginTime = System.currentTimeMillis();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String host = nodeInfo[1].split(":")[0];
             int port = Integer.valueOf(nodeInfo[1].split(":")[1]);
@@ -1184,6 +1187,7 @@ public class RedisClusterManager {
         long count = 0;
         long beginTime = System.currentTimeMillis();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String host = nodeInfo[1].split(":")[0];
             int port = Integer.valueOf(nodeInfo[1].split(":")[1]);
@@ -1757,6 +1761,7 @@ public class RedisClusterManager {
         try {
             bw = new BufferedWriter(new FileWriter(filePath));
             for (String node : nodes.split("\n")) {
+                node = node.replaceAll("@[0-9]*", "");
                 bw.write(node);
                 bw.write("\\n");
             }
@@ -1794,6 +1799,7 @@ public class RedisClusterManager {
         String destination_node_id = null;
         List<Jedis> clusterHostList = new ArrayList<Jedis>();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String nodeId = nodeInfo[0];
             String host = nodeInfo[1];
@@ -2238,6 +2244,7 @@ public class RedisClusterManager {
         Map<String, String> host2master = new TreeMap<String, String>();
         Map<String, String> master2slave = new TreeMap<String, String>();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String type = nodeInfo[2];
             if (type.contains("master")) {
@@ -2248,6 +2255,7 @@ public class RedisClusterManager {
         }
 
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String type = nodeInfo[2];
             if (type.contains("slave")) {
@@ -2299,6 +2307,7 @@ public class RedisClusterManager {
         StringBuffer nodeFailCheck = new StringBuffer("==== node status check info ====");
         boolean failCheckFind = false;
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             if (node.contains("fail") || node.contains(":0")) {
                 nodeFailCheck.append("\r\n" + node);
                 failCheckFind = true;
@@ -2364,6 +2373,7 @@ public class RedisClusterManager {
             int nodeCount = 0;
             String addNodeId = null;
             for (String node : nodes.split("\n")) {
+                node = node.replaceAll("@[0-9]*", "");
                 String[] nodeInfo = node.split("\\s+");
                 if (node.contains("myself")) {
                     addNodeId = nodeInfo[0];
@@ -2413,10 +2423,12 @@ public class RedisClusterManager {
         String masterNodeId = null;
         List<Jedis> clusterHostList = new ArrayList<Jedis>();
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             if (node.contains("master") && node.contains("connected")) {//只通知master节点
                 String[] nodeInfo = node.split("\\s+");
-                String[] hostInfo = nodeInfo[1].split(":");
-                if (masterNode.equals(nodeInfo[1])) {
+                String hostPort = nodeInfo[1];
+                String[] hostInfo = hostPort.split(":");
+                if (masterNode.equals(hostPort)) {
                     masterNodeId = nodeInfo[0];
                 }
                 int port = Integer.parseInt(hostInfo[1]);
@@ -2434,6 +2446,7 @@ public class RedisClusterManager {
         int nodeCount = 0;
         String addNodeId = null;
         for (String node : nodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             if (node.contains("myself")) {
                 addNodeId = nodeInfo[0];
@@ -2502,8 +2515,10 @@ public class RedisClusterManager {
                     continue;
                 }
                 for (String node : checkNodes.split("\n")) {
+                    node = node.replaceAll("@[0-9]*", "");
                     String[] nodeInfo = node.split("\\s+");
-                    if (slaveNode.equals(nodeInfo[1])) {
+                    String hostPort = nodeInfo[1];
+                    if (slaveNode.equals(hostPort)) {
                         isAddSuccess = true;
                         break;
                     }
@@ -2560,6 +2575,7 @@ public class RedisClusterManager {
         List<String> delNodeIds = new ArrayList<String>();//:0 如果不在线是这种格式可能存在多个主机
         List<Jedis> clusterHostList = new ArrayList<Jedis>();
         for (String node : clusterNodes.split("\n")) {
+            node = node.replaceAll("@[0-9]*", "");
             String[] nodeInfo = node.split("\\s+");
             String[] hostInfo = nodeInfo[1].split(":");
             if (delNode.equals(nodeInfo[1])) {
