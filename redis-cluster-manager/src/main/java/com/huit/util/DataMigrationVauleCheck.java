@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ *
  * 数据从单实例迁移到集群数据数据迁移完之后一致性检查工具
  * Created by huit on 2017/10/24.
  */
@@ -16,7 +17,7 @@ public class DataMigrationVauleCheck {
     private static String redisHost, clusterHost, keys;
     private static int redisPort, clusterPort;
 
-    private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 keys=0:hash,0:string,0:set,0:zset,0:list";
+    private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 keys=0#hash,0#string,0#set,0#zset,0#list";
 
     static JedisCluster cluster;
     static Jedis old;
@@ -50,7 +51,7 @@ public class DataMigrationVauleCheck {
     public static void compareData(String keys) {
         String[] keysInfos = keys.split(",");
         for (String keysInfo : keysInfos) {
-            String[] kv = keysInfo.split(":");
+            String[] kv = keysInfo.split("#");
             int db = Integer.valueOf(kv[0]);
             old.select(db);
             String type = old.type(kv[1]);
