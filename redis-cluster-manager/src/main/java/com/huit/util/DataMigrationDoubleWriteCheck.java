@@ -5,6 +5,7 @@ import redis.clients.jedis.*;
 import java.util.*;
 
 /**
+ * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigrationDoubleWriteCheck args
  * 数据从单实例迁移到集群数据双写一致性检查工具
  * 已知问题：
  * 1.中文字符比较可能不成功
