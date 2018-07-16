@@ -2,25 +2,41 @@ package com.huit.util;
 
 import redis.clients.jedis.*;
 
-import java.io.*;
 import java.util.*;
 
 /**
  * 数据从单实例迁移到集群数据双写一致性检查工具
+ * redisHost=10.0.6.200 单机IP
+ * redisPort=6380 单机端口
+ * clusterHost=10.0.6.200 集群IP
+ * clusterPort=6001 集群端口
+ * ipFilter=10.0.9.133 要过滤执行操作的机器IP
+ * monitorTime=5000 监控时间毫秒
+ * dbMap=0->shop,1->good 数据映射关系，如0映射为shop,如果指定默认 0:key映射为0_key
+ * <p>
+ * 输出notSync或sync，如-> sync:1531730394.453018 [0 10.0.9.133:59118] "set" "a" "a"
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationCheck {
-    private static String redisHost, clusterHost, dbs, logFilePath, ipFilter;
-    private static int redisPort, clusterPort, monitorTime;
+    public static String redisHost, clusterHost, ipFilter;
+    public static int redisPort, clusterPort, monitorTime;
+    /**
+     * db映射成集群的前缀
+     */
+    public static Map<String, String> dbMap = new HashMap<String, String>();
+    public static String[] dbIndexMap = new String[16];
 
-    private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 ipFilter=127.0.0.1 monitorTime=100";
+    public static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=10.0.6.200 clusterPort=6001 ipFilter=10.0.9.133 monitorTime=5000 dbMap=0->shop,1->good";
 
     static JedisCluster cluster;
     static Jedis old;
 
-    public static void main(String[] args) throws IOException {
-//        args = helpInfo.split(" ");
-        parseArgs(args);
+    public static void main(String[] args) throws Exception {
+        args = helpInfo.split(" ");
+        ArgsParse.parseArgs(DataMigrationCheck.class, args, "cluster", "old", "dbIndexMap");
+        for (Map.Entry<String, String> entry : dbMap.entrySet()) {
+            dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();
+        }
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
         nodes.add(new HostAndPort(clusterHost, clusterPort));
         JedisPoolConfig poolConfig = new JedisPoolConfig();
@@ -73,7 +89,11 @@ public class DataMigrationCheck {
         if (cmdInfo.length >= 2) {
             String cmd = trimValue(cmdInfo[0]).toLowerCase();
             String oldKey = cmdInfo[1].replace("\"", "");
-            String clusterKey = db + "_" + oldKey;
+            String clusterKey = dbIndexMap[Integer.valueOf(db)];
+            if (null == clusterKey) {
+                clusterKey = db + "_";
+            }
+            clusterKey += oldKey;
 
             if ("hmset".equals(cmd)) {
                 Map<String, String> clusterValue = cluster.hgetAll(clusterKey);
@@ -219,29 +239,5 @@ public class DataMigrationCheck {
 
         }, "monitorTimer").start();
         jedis.monitor(monitor);
-    }
-
-    private static void parseArgs(String[] args) throws IOException {
-        for (String arg : args) {
-            if (arg.split("=").length != 2) {
-                continue;
-            }
-            if (arg.startsWith("redisHost=")) {
-                redisHost = arg.split("=")[1];
-            } else if (arg.startsWith("clusterHost=")) {
-                clusterHost = arg.split("=")[1];
-            } else if (arg.startsWith("redisPort=")) {
-                redisPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("monitorTime=")) {
-                monitorTime = Integer.valueOf(arg.split("=")[1]) * 1000;
-            } else if (arg.startsWith("clusterPort=")) {
-                clusterPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("ipFilter=")) {
-                ipFilter = arg.split("=")[1];
-            } else {
-                System.out.println("helpInfo:" + helpInfo);
-            }
-        }
-        System.out.println("input args->redisHost:" + redisHost + " redisPort:" + redisPort + " clusterHost:" + clusterHost + " clusterPort:" + clusterPort + " ipFilter:" + ipFilter + " monitorTime:" + monitorTime);
     }
 }
