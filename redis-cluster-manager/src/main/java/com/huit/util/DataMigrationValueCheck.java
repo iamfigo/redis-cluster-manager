@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigrationValueCheck args
  * 数据从单实例迁移到集群数据数据迁移完之后一致性检查工具
  * redisHost=10.0.6.200 单机IP
  * redisPort=6380 单机端口
@@ -35,8 +36,9 @@ public class DataMigrationValueCheck {
     static Jedis old;
 
     public static void main(String[] args) throws Exception {
-        args = helpInfo.split(" ");
-        parseArgs(args);
+        if(args.length ==0){
+            args = helpInfo.split(" ");
+        }
         ArgsParse.parseArgs(DataMigrationValueCheck.class, args, "cluster", "old", "dbIndexMap");
         for (Map.Entry<String, String> entry : dbMap.entrySet()) {
             dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();
@@ -158,27 +160,5 @@ public class DataMigrationValueCheck {
             e1.printStackTrace();
         }
         return s;
-    }
-
-    private static void parseArgs(String[] args) throws IOException {
-        for (String arg : args) {
-            if (arg.split("=").length != 2) {
-                continue;
-            }
-            if (arg.startsWith("redisHost=")) {
-                redisHost = arg.split("=")[1];
-            } else if (arg.startsWith("clusterHost=")) {
-                clusterHost = arg.split("=")[1];
-            } else if (arg.startsWith("redisPort=")) {
-                redisPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("clusterPort=")) {
-                clusterPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("keys=")) {
-                keys = arg.split("=")[1];
-            } else {
-                System.out.println("helpInfo:" + helpInfo);
-            }
-        }
-        System.out.println("input args->redisHost:" + redisHost + " redisPort:" + redisPort + " clusterHost:" + clusterHost + " clusterPort:" + clusterPort + " keys:" + keys);
     }
 }

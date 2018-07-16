@@ -1,6 +1,7 @@
 package com.huit.util;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -81,7 +82,11 @@ public class ArgsParse {
                         value = Arrays.toString(values);
                     }
                 } else {
-                    value = field.get(field.getName());
+                    if (!Modifier.isPublic(field.getModifiers())) {
+                        continue;
+                    } else {
+                        value = field.get(field.getName());
+                    }
                 }
                 if (value == null) {
                     value = "";

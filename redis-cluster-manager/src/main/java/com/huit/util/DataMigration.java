@@ -11,12 +11,28 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 数据从单实例迁移到集群
+ * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigration args
+ *
+ * redisHost=10.0.6.200 单机IP
+ * redisPort=6380 单机端口
+ * clusterHost=10.0.6.200 集群IP
+ * clusterPort=6001 集群端口
+ * dbs=0,1,2/all 要迁移的db
+ * dbMap=0->shop,1->good db映射
+ * logFilePath=/Users/huit/migration.log" 迁移日志
+ *
  * Created by huit on 2017/10/20.
  */
 public class DataMigration {
-    private static String redisHost, clusterHost, dbs, logFilePath, keyPre = "*";
-    private static int redisPort, clusterPort;
-    private static Set<String> dbsSet = new HashSet<String>();//要签移的db
+    public static String redisHost, clusterHost, dbs, logFilePath, keyPre = "*";
+    public static int redisPort, clusterPort;
+    public static Set<String> dbsSet = new HashSet<String>();//要签移的db
+    /**
+     * db映射成集群的前缀
+     */
+    public static Map<String, String> dbMap = new HashMap<String, String>();
+    public static String[] dbIndexMap = new String[16];
+
 
     private static String getValue(String data, String key) {
         for (String s : data.split(",")) {
@@ -37,11 +53,30 @@ public class DataMigration {
 
     private static Map<String, Long> dbSize = new TreeMap<String, Long>();
 
-    private static String helpInfo = "redisHost=10.0.6.200 redisPort=6379 clusterHost=10.0.6.200 clusterPort=6000 dbs=db0,db1,db2 logFilePath=d:/migration.log";
+    private static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=localhost clusterPort=6001 dbs=0 dbMap=0->shop,1->good logFilePath=/Users/huit/migration.log";
 
-    public static void main(String[] args) throws IOException {
-//        args = helpInfo.split(" ");
-        parseArgs(args);
+    public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            args = helpInfo.split(" ");
+        }
+        ArgsParse.parseArgs(DataMigration.class, args, "dbMap", "dbIndexMap");
+        for (Map.Entry<String, String> entry : dbMap.entrySet()) {
+            dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();
+        }
+        dbsSet.addAll(Arrays.asList(dbs.split(",")));
+        if (null != logFilePath) {
+            bw = new BufferedWriter(new FileWriter(logFilePath));
+            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        bw.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }));
+        }
         printMigrationInfo();
 
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
@@ -85,7 +120,7 @@ public class DataMigration {
             }
             String[] dbInfo = s.split(":");
 
-            if ("all".equals(dbs) || dbsSet.contains(dbInfo[0])) {
+            if ("all".equals(dbs) || dbsSet.contains(dbInfo[0].replace("db", ""))) {
                 dbSize.put(dbInfo[0], getValueLong(dbInfo[1], "keys"));
                 System.out.println(s);
             }
@@ -94,7 +129,7 @@ public class DataMigration {
         System.out.println("migration db info end");
     }
 
-    static ScanParams sp = new ScanParams();
+    private static ScanParams sp = new ScanParams();
 
     static {
         sp.count(10000);
@@ -137,7 +172,7 @@ public class DataMigration {
                 JSONObject json = new JSONObject();
                 json.put("key", key);
                 json.put("db", db);
-                String clusterKey = db + "_" + key;
+                String clusterKey = DataMigrationDoubleWriteCheck.buildClusterKey(db, key, dbIndexMap);
                 String keyType = nodeCli.type(key);
                 json.put("type", keyType);
                 long ttl = nodeCli.ttl(key);//读取key数据之前先得到key过期时间，防止在写数据的过程中出现数据过期
@@ -282,43 +317,5 @@ public class DataMigration {
             e.printStackTrace();
             System.out.println("writeLogError->" + json);
         }
-    }
-
-    private static void parseArgs(String[] args) throws IOException {
-        for (String arg : args) {
-            if (arg.split("=").length != 2) {
-                continue;
-            }
-            if (arg.startsWith("redisHost=")) {
-                redisHost = arg.split("=")[1];
-            } else if (arg.startsWith("clusterHost=")) {
-                clusterHost = arg.split("=")[1];
-            } else if (arg.startsWith("dbs=")) {
-                dbs = arg.split("=")[1];
-                dbsSet.addAll(Arrays.asList(dbs.split(",")));
-            } else if (arg.startsWith("redisPort=")) {
-                redisPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("clusterPort=")) {
-                clusterPort = Integer.valueOf(arg.split("=")[1]);
-            } else if (arg.startsWith("logFilePath=")) {
-                logFilePath = arg.split("=")[1];
-                bw = new BufferedWriter(new FileWriter(logFilePath));
-                Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            bw.close();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }));
-            } else if (arg.startsWith("keyPre=")) {
-                keyPre = arg.split("=")[1];
-            } else {
-                System.out.println("helpInfo:" + helpInfo);
-            }
-        }
-        System.out.println("input args->redisHost:" + redisHost + " redisPort:" + redisPort + " clusterHost:" + clusterHost + " clusterPort:" + clusterPort + " dbs:" + dbs + " logFilePath:" + logFilePath + " keyPre:" + keyPre);
     }
 }
