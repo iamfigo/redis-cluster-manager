@@ -2,9 +2,7 @@ package com.huit.util;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 参数解析工具类
@@ -44,8 +42,14 @@ public class ArgsParse {
                 field.set(keyValue[0], keyValue[1].split(","));
             } else if (field.getType().getName().equals("int")) {
                 field.set(keyValue[0], Integer.parseInt(keyValue[1]));
+            } else if (field.getType().getName().equals("boolean")) {
+                field.set(keyValue[0], Boolean.parseBoolean(keyValue[1]));
             } else if (field.getType().getName().equals("long")) {
                 field.set(keyValue[0], Long.parseLong(keyValue[1]));
+            } else if (field.getType().getName().equals("java.util.Set")) {
+                Set set = new HashSet();
+                set.addAll(Arrays.asList(keyValue[1].split(",")));
+                field.set(keyValue[0], set);
             } else if (field.getType().getName().equals("java.util.Map")) {
                 Map map = new HashMap();
                 for (String s : keyValue[1].split(",")) {

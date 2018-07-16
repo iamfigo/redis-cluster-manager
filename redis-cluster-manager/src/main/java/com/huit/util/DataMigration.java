@@ -10,9 +10,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 数据从单实例迁移到集群
+ * 数据从单实例迁移到集群，已知问题：超大Key如BloomFilter迁移可能导致工具内存溢出
  * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigration args
- *
+ * <p>
  * redisHost=10.0.6.200 单机IP
  * redisPort=6380 单机端口
  * clusterHost=10.0.6.200 集群IP
@@ -20,13 +20,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * dbs=0,1,2/all 要迁移的db
  * dbMap=0->shop,1->good db映射
  * logFilePath=/Users/huit/migration.log" 迁移日志
- *
+ * exclude=deviceBloomFilter:bits,key2 要排除的key
+ * debug=true/false 是否调试模式，如果是在控制台打印输出
+ * <p>
  * Created by huit on 2017/10/20.
  */
 public class DataMigration {
     public static String redisHost, clusterHost, dbs, logFilePath, keyPre = "*";
     public static int redisPort, clusterPort;
+    public static boolean debug = false;
     public static Set<String> dbsSet = new HashSet<String>();//要签移的db
+    public static Set exclude;
     /**
      * db映射成集群的前缀
      */
@@ -53,7 +57,7 @@ public class DataMigration {
 
     private static Map<String, Long> dbSize = new TreeMap<String, Long>();
 
-    private static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=localhost clusterPort=6001 dbs=0 dbMap=0->shop,1->good logFilePath=/Users/huit/migration.log";
+    private static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=localhost clusterPort=6001 dbs=0 dbMap=0->shop,1->good logFilePath=/Users/huit/migration.log debug=true exclude=deviceBloomFilter:bits,key2";
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
@@ -165,7 +169,7 @@ public class DataMigration {
                         break;
                     }
                 }
-                if (!isExport) {
+                if (!isExport || exclude.contains(key)) {
                     continue;
                 }
 
@@ -176,6 +180,9 @@ public class DataMigration {
                 String keyType = nodeCli.type(key);
                 json.put("type", keyType);
                 long ttl = nodeCli.ttl(key);//读取key数据之前先得到key过期时间，防止在写数据的过程中出现数据过期
+                if (debug) {
+                    System.out.println(json);
+                }
                 if ("hash".equals(keyType)) {//覆盖
                     //nodeCli.hgetAll(key);//大key read time out
                     //cluster.hmset(clusterKey, value);//大key ERR Protocol error: invalid multibulk length
@@ -313,7 +320,7 @@ public class DataMigration {
             bw.write(json.toJSONString());
             bw.write('\r');
             bw.write('\n');
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println("writeLogError->" + json);
         }
