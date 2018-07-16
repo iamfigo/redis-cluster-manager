@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 数据从单实例迁移到集群，已知问题：超大Key如BloomFilter迁移可能导致工具内存溢出
  * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigration args
  * <p>
+ * 输入参数：
  * redisHost=10.0.6.200 单机IP
  * redisPort=6380 单机端口
  * clusterHost=10.0.6.200 集群IP
