@@ -9,22 +9,39 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- *
  * 数据从单实例迁移到集群数据数据迁移完之后一致性检查工具
+ * redisHost=10.0.6.200 单机IP
+ * redisPort=6380 单机端口
+ * clusterHost=10.0.6.200 集群IP
+ * clusterPort=6001 集群端口
+ * dbMap=0->shop,1->good 数据映射关系，如0映射为shop,如果指定默认 0:key映射为0_key
+ * keys=hash,0#string,1#set,0#zset,0#list 要检查的key列表，格式：db#key,db1#key2
+ * <p>
+ * 输出：sync->key:hash
  * Created by huit on 2017/10/24.
  */
-public class DataMigrationVauleCheck {
-    private static String redisHost, clusterHost, keys;
-    private static int redisPort, clusterPort;
+public class DataMigrationValueCheck {
+    public static String redisHost, clusterHost, keys;
+    public static int redisPort, clusterPort;
+    /**
+     * db映射成集群的前缀
+     */
+    public static Map<String, String> dbMap = new HashMap<String, String>();
+    public static String[] dbIndexMap = new String[16];
 
-    private static String helpInfo = "redisHost=10.0.6.200 redisPort=7000 clusterHost=10.0.6.200 clusterPort=6001 keys=0#hash,0#string,0#set,0#zset,0#list";
+    public static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=10.0.6.200 clusterPort=6001 dbMap=0->shop,1->good keys=0#key,0#string,0#set,0#zset,0#list";
 
     static JedisCluster cluster;
     static Jedis old;
 
-    public static void main(String[] args) throws IOException {
-//        args = helpInfo.split(" ");
+    public static void main(String[] args) throws Exception {
+        args = helpInfo.split(" ");
         parseArgs(args);
+        ArgsParse.parseArgs(DataMigrationValueCheck.class, args, "cluster", "old", "dbIndexMap");
+        for (Map.Entry<String, String> entry : dbMap.entrySet()) {
+            dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();
+        }
+
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
         nodes.add(new HostAndPort(clusterHost, clusterPort));
         JedisPoolConfig poolConfig = new JedisPoolConfig();
@@ -55,7 +72,9 @@ public class DataMigrationVauleCheck {
             int db = Integer.valueOf(kv[0]);
             old.select(db);
             String type = old.type(kv[1]);
-            String key = kv[1], clusterKey = db + "_" + key;
+            String key = kv[1];
+            String clusterKey = DataMigrationDoubleWriteCheck.buildClusterKey(db, key, dbIndexMap);
+
 
             if ("hash".equals(type)) {
                 Map<String, String> newValue = cluster.hgetAll(clusterKey);

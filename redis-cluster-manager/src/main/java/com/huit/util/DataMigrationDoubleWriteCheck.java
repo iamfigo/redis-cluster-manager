@@ -6,6 +6,11 @@ import java.util.*;
 
 /**
  * 数据从单实例迁移到集群数据双写一致性检查工具
+ * 已知问题：
+ * 1.中文字符比较可能不成功
+ * 2.由于存在时间差，高频操作的数据可能存比较错误，使用DataMigrationValueCheck工具多检测几次看是否同步
+ * <p>
+ * 输入参数：
  * redisHost=10.0.6.200 单机IP
  * redisPort=6380 单机端口
  * clusterHost=10.0.6.200 集群IP
@@ -14,11 +19,12 @@ import java.util.*;
  * monitorTime=5000 监控时间毫秒
  * dbMap=0->shop,1->good 数据映射关系，如0映射为shop,如果指定默认 0:key映射为0_key
  * <p>
- * 输出notSync或sync，如-> sync:1531730394.453018 [0 10.0.9.133:59118] "set" "a" "a"
+ * 输出结果：notSync或sync，如-> sync:1531730394.453018 [0 10.0.9.133:59118] "set" "a" "a"
+ * <p>
  * Created by huit on 2017/10/24.
  */
-public class DataMigrationCheck {
-    public static String redisHost, clusterHost, ipFilter;
+public class DataMigrationDoubleWriteCheck {
+    public static String redisHost, clusterHost, ipFilter, keys;
     public static int redisPort, clusterPort, monitorTime;
     /**
      * db映射成集群的前缀
@@ -33,10 +39,18 @@ public class DataMigrationCheck {
 
     public static void main(String[] args) throws Exception {
         args = helpInfo.split(" ");
-        ArgsParse.parseArgs(DataMigrationCheck.class, args, "cluster", "old", "dbIndexMap");
+        ArgsParse.parseArgs(DataMigrationDoubleWriteCheck.class, args, "cluster", "old", "dbIndexMap");
         for (Map.Entry<String, String> entry : dbMap.entrySet()) {
             dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();
         }
+
+        if (null != keys) {
+            for (String s : keys.split(",")) {
+                compareData(s);
+            }
+            return;
+        }
+
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
         nodes.add(new HostAndPort(clusterHost, clusterPort));
         JedisPoolConfig poolConfig = new JedisPoolConfig();
@@ -67,14 +81,12 @@ public class DataMigrationCheck {
         int hostBegin = data.indexOf("[");
         int hostEnd = data.indexOf("]");
 
-        double time;
         String db = null;
         String clientIp = null;
         String clientIpPort;
         String cmdDetail = null;
         String[] cmdInfo = null;
         if (hostBegin > 0 && hostBegin > 0) {
-            time = Double.valueOf(data.substring(0, hostBegin));
             db = data.substring(hostBegin + 1, hostEnd).split(" ")[0];
             clientIpPort = data.substring(hostBegin + 1, hostEnd).split(" ")[1];
             clientIp = clientIpPort.split(":")[0];
@@ -82,18 +94,14 @@ public class DataMigrationCheck {
             cmdInfo = cmdDetail.split(" ");
         }
 
-        if (null != ipFilter && !clientIp.startsWith(ipFilter)) {
+        if (null == keys && null != ipFilter && !clientIp.startsWith(ipFilter)) {
             return;
         }
 
         if (cmdInfo.length >= 2) {
             String cmd = trimValue(cmdInfo[0]).toLowerCase();
             String oldKey = cmdInfo[1].replace("\"", "");
-            String clusterKey = dbIndexMap[Integer.valueOf(db)];
-            if (null == clusterKey) {
-                clusterKey = db + "_";
-            }
-            clusterKey += oldKey;
+            String clusterKey = buildClusterKey(Integer.valueOf(db), oldKey, dbIndexMap);
 
             if ("hmset".equals(cmd)) {
                 Map<String, String> clusterValue = cluster.hgetAll(clusterKey);
@@ -191,6 +199,15 @@ public class DataMigrationCheck {
         }
     }
 
+    public static String buildClusterKey(int db, String oldKey, String[] dbIndexMap) {
+        String clusterKey = dbIndexMap[db];
+        if (null == clusterKey) {
+            clusterKey = db + "_";
+        }
+        clusterKey += oldKey;
+        return clusterKey;
+    }
+
     //TODO 16进制转中文
     public static String findStringHex(String s) {
         String v = "string\\xe4\\xb8\\xad\\xe5\\x9b\\xbd";
@@ -230,7 +247,6 @@ public class DataMigrationCheck {
                 try {
                     Thread.sleep(monitorTime);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
                 } finally {
                     System.out.println("useTime:" + (System.currentTimeMillis() - beginTime));
                     System.exit(0);
