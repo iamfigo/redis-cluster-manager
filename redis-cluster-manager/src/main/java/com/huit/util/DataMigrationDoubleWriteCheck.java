@@ -39,7 +39,10 @@ public class DataMigrationDoubleWriteCheck {
     static Jedis old;
 
     public static void main(String[] args) throws Exception {
-        args = helpInfo.split(" ");
+        if (args.length == 0) {
+            System.out.println("use default arg");
+            args = helpInfo.split(" ");
+        }
         ArgsParse.parseArgs(DataMigrationDoubleWriteCheck.class, args, "cluster", "old", "dbIndexMap");
         for (Map.Entry<String, String> entry : dbMap.entrySet()) {
             dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();

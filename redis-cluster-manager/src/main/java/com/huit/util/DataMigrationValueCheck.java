@@ -36,7 +36,8 @@ public class DataMigrationValueCheck {
     static Jedis old;
 
     public static void main(String[] args) throws Exception {
-        if(args.length ==0){
+        if(args.length == 0){
+            System.out.println("use default arg");
             args = helpInfo.split(" ");
         }
         ArgsParse.parseArgs(DataMigrationValueCheck.class, args, "cluster", "old", "dbIndexMap");

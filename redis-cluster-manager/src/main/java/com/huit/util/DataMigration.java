@@ -62,6 +62,7 @@ public class DataMigration {
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
+            System.out.println("use default arg");
             args = helpInfo.split(" ");
         }
         ArgsParse.parseArgs(DataMigration.class, args, "dbMap", "dbIndexMap");
