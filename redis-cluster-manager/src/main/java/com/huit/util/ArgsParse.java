@@ -67,6 +67,7 @@ public class ArgsParse {
 
         }
 
+        //print args
         Field[] fields = class_.getDeclaredFields();
         for (Field field : fields) {
             boolean isExclude = false;
@@ -86,7 +87,7 @@ public class ArgsParse {
                         value = Arrays.toString(values);
                     }
                 } else {
-                    if (!Modifier.isPublic(field.getModifiers())) {
+                    if (!Modifier.isPublic(field.getModifiers()) || "helpInfo".equals(field.getName())) {
                         continue;
                     } else {
                         value = field.get(field.getName());
