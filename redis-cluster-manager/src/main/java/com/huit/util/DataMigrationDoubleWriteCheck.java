@@ -166,8 +166,8 @@ public class DataMigrationDoubleWriteCheck {
                         System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + clusterKey);
                         return;
                     }
-                    double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
-                    double clusterScore = cluster.zscore(clusterKey, oldValue);
+                    Double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
+                    Double clusterScore = cluster.zscore(clusterKey, oldValue);
                     if (oldScore != clusterScore) {
                         isSync = false;
                         break;
