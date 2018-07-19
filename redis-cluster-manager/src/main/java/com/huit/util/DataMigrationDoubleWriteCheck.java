@@ -17,7 +17,7 @@ import java.util.*;
  * clusterHost=10.0.6.200 集群IP
  * clusterPort=6001 集群端口
  * ipFilter=10.0.9.133 要过滤执行操作的机器IP
- * monitorTime=5000 监控时间毫秒
+ * monitorTime=5 监控时间单位秒
  * dbMap=0->shop,1->good 数据映射关系，如0映射为shop,如果指定默认 0:key映射为0_key
  * <p>
  * 输出结果：notSync或sync，如-> sync:1531730394.453018 [0 10.0.9.133:59118] "set" "a" "a"
@@ -249,7 +249,7 @@ public class DataMigrationDoubleWriteCheck {
             @Override
             public void run() {
                 try {
-                    Thread.sleep(monitorTime);
+                    Thread.sleep(monitorTime * 1000);
                 } catch (InterruptedException e) {
                 } finally {
                     System.out.println("useTime:" + (System.currentTimeMillis() - beginTime));
