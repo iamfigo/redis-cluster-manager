@@ -29,8 +29,7 @@ import java.util.Set;
 public class DataMigrationSingleDoubleWriteCheck {
     public static String redisHost, newRedisHost, ipFilter, keys, redisPwd, newRedisPwd;
     public static int redisPort, newRedisPort, monitorTime;
-    public static String[] dbIndexMap = new String[16];
-    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter=10.0.9.133 monitorTime=5000";
+    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= monitorTime=5";
 
     static Jedis newRedis;
     static Jedis old;
@@ -98,7 +97,7 @@ public class DataMigrationSingleDoubleWriteCheck {
         if (cmdInfo.length >= 2) {
             String cmd = trimValue(cmdInfo[0]).toLowerCase();
             String oldKey = cmdInfo[1].replace("\"", "");
-            String newRedisKey = buildnewRedisKey(Integer.valueOf(db), oldKey, dbIndexMap);
+            String newRedisKey = oldKey;
 
             if ("hmset".equals(cmd)) {
                 Map<String, String> newRedisValue = newRedis.hgetAll(newRedisKey);
@@ -196,14 +195,6 @@ public class DataMigrationSingleDoubleWriteCheck {
         }
     }
 
-    public static String buildnewRedisKey(int db, String oldKey, String[] dbIndexMap) {
-        String newRedisKey = dbIndexMap[db];
-        if (null == newRedisKey) {
-            newRedisKey = db + "_";
-        }
-        newRedisKey += oldKey;
-        return newRedisKey;
-    }
 
     //TODO 16进制转中文
     public static String findStringHex(String s) {
@@ -251,6 +242,9 @@ public class DataMigrationSingleDoubleWriteCheck {
             }
 
         }, "monitorTimer").start();
+        if (null != redisPwd) {
+            jedis.auth(redisPwd);
+        }
         jedis.monitor(monitor);
     }
 }

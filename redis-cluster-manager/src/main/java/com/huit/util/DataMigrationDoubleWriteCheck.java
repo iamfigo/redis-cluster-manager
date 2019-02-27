@@ -33,7 +33,7 @@ public class DataMigrationDoubleWriteCheck {
     public static Map<String, String> dbMap = new HashMap<String, String>();
     public static String[] dbIndexMap = new String[16];
 
-    public static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=10.0.6.200 clusterPort=6001 ipFilter=10.0.9.133 monitorTime=5000 dbMap=0->shop,1->good";
+    public static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 clusterHost=10.0.6.200 clusterPort=6001 ipFilter=10.0.9.133 monitorTime=5 dbMap=0->shop,1->good";
 
     static JedisCluster cluster;
     static Jedis old;
