@@ -30,7 +30,7 @@ public class DataMigrationSingleDoubleWriteCheck {
     public static String redisHost, newRedisHost, ipFilter, keys, redisPwd, newRedisPwd;
     public static int redisPort, newRedisPort, monitorTime;
     public static String[] dbIndexMap = new String[16];
-    public static String helpInfo = "redisHost=redis.wallet.gy.56qq.cn redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter=10.0.9.133 monitorTime=5000";
+    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter=10.0.9.133 monitorTime=5000";
 
     static Jedis newRedis;
     static Jedis old;
