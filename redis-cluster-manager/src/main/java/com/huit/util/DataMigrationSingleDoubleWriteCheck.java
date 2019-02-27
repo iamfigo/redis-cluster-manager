@@ -27,11 +27,10 @@ import java.util.Set;
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationSingleDoubleWriteCheck {
-    public static String redisHost, newRedisHost, ipFilter, keys;
+    public static String redisHost, newRedisHost, ipFilter, keys, redisPwd, newRedisPwd;
     public static int redisPort, newRedisPort, monitorTime;
     public static String[] dbIndexMap = new String[16];
-
-    public static String helpInfo = "redisHost=10.0.6.200 redisPort=6380 newRedisHost=10.0.6.200 newRedisPort=6001 ipFilter=10.0.9.133 monitorTime=5000 dbMap=0->shop,1->good";
+    public static String helpInfo = "redisHost=redis.wallet.gy.56qq.cn redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter=10.0.9.133 monitorTime=5000";
 
     static Jedis newRedis;
     static Jedis old;
@@ -52,7 +51,13 @@ public class DataMigrationSingleDoubleWriteCheck {
 
 
         newRedis = new Jedis(newRedisHost, newRedisPort);
+        if (null != newRedisPwd) {
+            newRedis.auth(newRedisPwd);
+        }
         old = new Jedis(redisHost, redisPort);
+        if (null != redisPwd) {
+            old.auth(redisPwd);
+        }
 
         onlineMonitor();
     }
