@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-mvn package assembly:assembly
+mvn clean package assembly:assembly
