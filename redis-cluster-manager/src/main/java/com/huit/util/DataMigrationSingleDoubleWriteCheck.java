@@ -20,6 +20,7 @@ import java.util.Set;
  * newRedisHost=10.0.6.200 新RedisIP
  * newRedisPort=6001 新Redis端口
  * ipFilter=10.0.9.133 要过滤执行操作的机器IP
+ * keyFilter=dpm_ 要过滤key前缀
  * monitorTime=5 监控时间单位秒
  * <p>
  * 输出结果：notSync或sync，如-> sync:1531730394.453018 [0 10.0.9.133:59118] "set" "a" "a"
@@ -27,9 +28,9 @@ import java.util.Set;
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationSingleDoubleWriteCheck {
-    public static String redisHost, newRedisHost, ipFilter, keys, redisPwd, newRedisPwd;
+    public static String redisHost, newRedisHost, ipFilter, keyFilter, keys, redisPwd, newRedisPwd;
     public static int redisPort, newRedisPort, monitorTime;
-    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= monitorTime=5";
+    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= keyFilter=dpm_ monitorTime=500";
 
     static Jedis newRedis;
     static Jedis old;
@@ -99,16 +100,15 @@ public class DataMigrationSingleDoubleWriteCheck {
             String oldKey = cmdInfo[1].replace("\"", "");
             String newRedisKey = oldKey;
 
+            if (null == keys && null != keyFilter && !oldKey.startsWith(keyFilter)) {
+                return;
+            }
+
             if ("hmset".equals(cmd)) {
                 Map<String, String> newRedisValue = newRedis.hgetAll(newRedisKey);
                 for (int i = 2; i < cmdInfo.length; i += 2) {
-                    String oldValue = trimValue(cmdInfo[i + 1]);
+                    String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
                     String newValue = newRedisValue.get(trimValue(cmdInfo[i]));
-                    if (oldValue.contains("\\x")) {
-                        //目前16进制未处理
-                        System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + newRedisKey);
-                        return;
-                    }
                     if (!oldValue.equals(newValue)) {
                         System.out.println("notSync:data:" + data + "->old:" + oldValue + " new:" + newValue);
                         return;
@@ -124,18 +124,26 @@ public class DataMigrationSingleDoubleWriteCheck {
                 } else {
                     System.out.println("sync:" + data);
                 }
-            } else if ("set".equals(cmd)) {
-                String newRedisValue = newRedis.get(newRedisKey);
-                String oldValue = trimValue(cmdInfo[2]);
-                if (oldValue.contains("\\x")) {
-                    //目前16进制未处理
-                    System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + newRedisValue);
-                    return;
+            } else if ("set".equals(cmd) || "setnx".equals(cmd)) {
+                boolean isEquals = false;
+                String oldValue = HexToCn.redisString(trimValue(cmdInfo[2]));
+                String newRedisValue = null;
+                for (int i = 0; i < 3; i++) {
+                    newRedisValue = newRedis.get(newRedisKey);
+                    if (oldValue.equals(newRedisValue)) {
+                        isEquals = true;
+                        break;
+                    } else {
+                        try {
+                            Thread.sleep(5);
+                        } catch (InterruptedException e) {
+                        }
+                    }
                 }
-                if (!oldValue.equals(newRedisValue)) {
-                    System.out.println("notSync:" + data);
+                if (isEquals) {
+                    System.out.println("sync->key:" + oldKey);
                 } else {
-                    System.out.println("sync:" + data);
+                    System.out.println("notSync->key:" + oldKey + " oldValue:" + oldValue + " newValue:" + newRedisValue);
                 }
             } else if ("expire".equals(cmd)) {
                 Long newRedisValue = newRedis.ttl(newRedisKey);
@@ -152,12 +160,7 @@ public class DataMigrationSingleDoubleWriteCheck {
             } else if ("zadd".equals(cmd)) {
                 boolean isSync = true;
                 for (int i = 2; i < cmdInfo.length; i += 2) {
-                    String oldValue = trimValue(cmdInfo[i + 1]);
-                    if (oldValue.contains("\\x")) {
-                        //目前16进制未处理
-                        System.out.println("syncNotSure:data:" + data + "->old:" + oldValue + " new:" + newRedisKey);
-                        return;
-                    }
+                    String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
                     Double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
                     Double newRedisScore = newRedis.zscore(newRedisKey, oldValue);
                     if (oldScore != newRedisScore) {
@@ -173,12 +176,7 @@ public class DataMigrationSingleDoubleWriteCheck {
             } else if ("sadd".equals(cmd)) {
                 boolean isSync = true;
                 for (int i = 2; i < cmdInfo.length; i++) {
-                    String oldValue = trimValue(cmdInfo[i]);
-                    if (oldValue.contains("\\x")) {
-                        //目前16进制未处理
-                        System.out.println("syncNotSure:data:" + data + "->old:" + oldValue);
-                        return;
-                    }
+                    String oldValue = HexToCn.redisString(trimValue(cmdInfo[i]));
                     if (!newRedis.sismember(newRedisKey, oldValue) && old.sismember(trimValue(cmdInfo[1]), oldValue)) {//高并发情况下可能被移出
                         isSync = false;
                         break;
@@ -193,31 +191,6 @@ public class DataMigrationSingleDoubleWriteCheck {
         } else {
             return;
         }
-    }
-
-
-    //TODO 16进制转中文
-    public static String findStringHex(String s) {
-        String v = "string\\xe4\\xb8\\xad\\xe5\\x9b\\xbd";
-        return v;
-    }
-
-    // 转化十六进制编码为字符串
-    public static String toStringHex(String s) {
-        byte[] baKeyword = new byte[s.length() / 2];
-        for (int i = 0; i < baKeyword.length; i++) {
-            try {
-                baKeyword[i] = (byte) (0xff & Integer.parseInt(s.substring(i * 2, i * 2 + 2), 16));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        try {
-            s = new String(baKeyword, "utf-8");//UTF-16le:Not
-        } catch (Exception e1) {
-            e1.printStackTrace();
-        }
-        return s;
     }
 
     public static void onlineMonitor() {
