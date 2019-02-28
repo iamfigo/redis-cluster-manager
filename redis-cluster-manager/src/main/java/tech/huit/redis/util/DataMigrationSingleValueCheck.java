@@ -4,7 +4,7 @@ import redis.clients.jedis.Jedis;
 import java.util.Map;
 
 /**
- * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar DataMigrationSingleValueCheck args
+ * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar tech.huit.redis.util.DataMigrationSingleValueCheck args
  * 数据从单实例迁移到新机器数据迁移完之后一致性检查工具
  * redisHost=10.0.6.200 单机IP
  * redisPort=6380 单机端口
@@ -18,7 +18,7 @@ import java.util.Map;
 public class DataMigrationSingleValueCheck {
     public static String redisHost, newRedisHost, keys, redisPwd, newRedisPwd;
     public static int redisPort, newRedisPort;
-    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= keys=0#dpm_accountStatus_200024642093_201";
+    public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= keys=0#dpm_accountStatus_200018980176_201";
 
     static Jedis newRedis;
     static Jedis old;

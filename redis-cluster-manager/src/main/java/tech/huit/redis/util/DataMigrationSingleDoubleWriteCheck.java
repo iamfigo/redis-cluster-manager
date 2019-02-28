@@ -33,22 +33,22 @@ public class DataMigrationSingleDoubleWriteCheck {
     public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= keyFilter=dpm_ monitorTime=500";
 
     static Jedis newRedis;
-    static Jedis old;
+    static Jedis oldRedis;
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             System.out.println("use default arg");
             args = helpInfo.split(" ");
         }
-        ArgsParse.parseArgs(DataMigrationSingleDoubleWriteCheck.class, args, "newRedis", "old", "dbIndexMap");
+        ArgsParse.parseArgs(DataMigrationSingleDoubleWriteCheck.class, args, "newRedis", "oldRedis", "lastDbIndex");
 
         newRedis = new Jedis(newRedisHost, newRedisPort);
         if (null != newRedisPwd) {
             newRedis.auth(newRedisPwd);
         }
-        old = new Jedis(redisHost, redisPort);
+        oldRedis = new Jedis(redisHost, redisPort);
         if (null != redisPwd) {
-            old.auth(redisPwd);
+            oldRedis.auth(redisPwd);
         }
 
         onlineMonitor();
@@ -62,6 +62,8 @@ public class DataMigrationSingleDoubleWriteCheck {
         }
     }
 
+    private static int lastDbIndex = 0;
+
     public static void compareData(String data) {
         if ("OK".equals(data)) {
             return;
@@ -69,13 +71,13 @@ public class DataMigrationSingleDoubleWriteCheck {
         int hostBegin = data.indexOf("[");
         int hostEnd = data.indexOf("]");
 
-        String db = null;
+        int db = 0;
         String clientIp = null;
         String clientIpPort;
         String cmdDetail = null;
         String[] cmdInfo = null;
         if (hostBegin > 0 && hostBegin > 0) {
-            db = data.substring(hostBegin + 1, hostEnd).split(" ")[0];
+            db = Integer.valueOf(data.substring(hostBegin + 1, hostEnd).split(" ")[0]);
             clientIpPort = data.substring(hostBegin + 1, hostEnd).split(" ")[1];
             clientIp = clientIpPort.split(":")[0];
             cmdDetail = data.substring(hostEnd + 2);
@@ -86,106 +88,122 @@ public class DataMigrationSingleDoubleWriteCheck {
             return;
         }
 
-        if (cmdInfo.length >= 2) {
-            String cmd = trimValue(cmdInfo[0]).toLowerCase();
-            String key = cmdInfo[1].replace("\"", "");
-            if (null != keyFilter && !key.startsWith(keyFilter)) {
-                return;
-            }
+        if ("\"SELECT\"".equalsIgnoreCase(cmdInfo[0]) || cmdInfo.length < 2) {
+            return;
+        }
 
-            if ("hmset".equals(cmd)) {
-                Map<String, String> newRedisValue = newRedis.hgetAll(key);
-                for (int i = 2; i < cmdInfo.length; i += 2) {
-                    String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
-                    String newValue = newRedisValue.get(trimValue(cmdInfo[i]));
-                    if (!oldValue.equals(newValue)) {
-                        System.out.println("notSync->key:" + key + " oldValue:" + oldValue + " newValue:" + newRedisValue);
-                        return;
-                    }
-                }
+        String cmd = trimValue(cmdInfo[0]).toLowerCase();
+        String key = cmdInfo[1].replace("\"", "");
+        if (null != keyFilter && !key.startsWith(keyFilter)) {
+            return;
+        }
 
-                System.out.println("sync->key:" + key);
-            } else if ("del".equals(cmd)) {
-                String newRedisValue = newRedis.type(key);
-                if (!"none".equals(newRedisValue)) {//没有被删除
-                    System.out.println("notSync->key:" + key + " oldValue:none" + " newValue:" + newRedisValue);
+        if (lastDbIndex != db) {
+            oldRedis.select(db);
+            newRedis.select(db);
+            lastDbIndex = db;
+        }
+
+        if ("hmset".equals(cmd)) {
+            Map<String, String> newRedisValue = newRedis.hgetAll(key);
+            for (int i = 2; i < cmdInfo.length; i += 2) {
+                String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
+                String newValue = newRedisValue.get(trimValue(cmdInfo[i]));
+                if (!oldValue.equals(newValue)) {
+                    printSyncResult(clientIp, cmd, key, false, oldValue, newValue);
                     return;
-                } else {
-                    System.out.println("sync->key:" + key);
                 }
-            } else if ("set".equals(cmd) || "setnx".equals(cmd)) {
-                boolean isEquals = false;
-                String oldValue = HexToCn.redisString(trimValue(cmdInfo[2]));
-                String newRedisValue = null;
-                for (int i = 0; i < 10; i++) {
-                    newRedisValue = newRedis.get(key);
-                    if ("setnx".equals(cmd)) {
-                        JSONObject oldJson = JSON.parseObject(oldValue);
-                        JSONObject newJson = JSON.parseObject(newRedisValue);
-                        oldJson.remove("lastUpdatetime");
-                        newJson.remove("lastUpdatetime");
-                        if (oldJson.equals(newJson)) {
-                            isEquals = true;
-                            break;
-                        }
-                    }
-                    if (oldValue.equals(newRedisValue)) {
+            }
+            printSyncResult(clientIp, cmd, key);
+        } else if ("del".equals(cmd)) {
+            boolean isEquals = false;
+            for (int i = 0; i < 5; i++) {
+                String newRedisValue = newRedis.type(key);
+                if ("none".equals(newRedisValue)) {
+                    isEquals = true;
+                    break;
+                }
+                waitMillis(20);
+            }
+            printSyncResult(clientIp, cmd, key, isEquals, null, null);
+        } else if ("set".equals(cmd) || "setnx".equals(cmd)) {
+            boolean isEquals = false;
+            String oldValue = HexToCn.redisString(trimValue(cmdInfo[2]));
+            String newRedisValue = null;
+            for (int i = 0; i < 5; i++) {
+                newRedisValue = newRedis.get(key);
+                if ("setnx".equals(cmd) && key.startsWith("dpm_accountStatus")) {
+                    JSONObject oldJson = JSON.parseObject(oldValue);
+                    JSONObject newJson = JSON.parseObject(newRedisValue);
+                    oldJson.remove("lastUpdatetime");
+                    newJson.remove("lastUpdatetime");
+                    if (oldJson.equals(newJson)) {
                         isEquals = true;
                         break;
-                    } else {
-                        try {
-                            Thread.sleep(20);
-                        } catch (InterruptedException e) {
-                        }
-                        oldValue = old.get(key);
                     }
                 }
-                if (isEquals) {
-                    System.out.println("sync->cmd:" + cmd + " key:" + key);
+                if (oldValue.equals(newRedisValue)) {
+                    isEquals = true;
+                    break;
                 } else {
-                    System.out.println("notSync->cmd:" + cmd + " key:" + key + " oldValue:" + oldValue + "newValue:" + newRedisValue);
-                }
-            } else if ("expire".equals(cmd)) {
-                Long newRedisValue = newRedis.ttl(key);
-                String oldValue = trimValue(cmdInfo[2]);
-                if (Long.valueOf(oldValue) - newRedisValue >= 5) {//超过1秒肯定不正常
-                    System.out.println("notSync->key:" + key + " oldTtl:" + oldValue + " newTtl:" + newRedisValue);
-                } else {
-                    System.out.println("sync->key:" + key);
-                }
-            } else if ("zadd".equals(cmd)) {
-                boolean isSync = true;
-                for (int i = 2; i < cmdInfo.length; i += 2) {
-                    String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
-                    Double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
-                    Double newRedisScore = newRedis.zscore(key, oldValue);
-                    if (oldScore != newRedisScore) {
-                        isSync = false;
-                        break;
-                    }
-                }
-                if (!isSync) {
-                    System.out.println("notSync->key:" + key);
-                } else {
-                    System.out.println("sync->key:" + key);
-                }
-            } else if ("sadd".equals(cmd)) {
-                boolean isSync = true;
-                for (int i = 2; i < cmdInfo.length; i++) {
-                    String oldValue = HexToCn.redisString(trimValue(cmdInfo[i]));
-                    if (!newRedis.sismember(key, oldValue) && old.sismember(trimValue(cmdInfo[1]), oldValue)) {//高并发情况下可能被移出
-                        isSync = false;
-                        break;
-                    }
-                }
-                if (!isSync) {
-                    System.out.println("notSync->key:" + key);
-                } else {
-                    System.out.println("sync->key:" + key);
+                    waitMillis(20);
+                    oldValue = oldRedis.get(key);
                 }
             }
+            printSyncResult(clientIp, cmd, key, isEquals, oldValue, newRedisValue);
+        } else if ("expire".equals(cmd)) {
+            Long newRedisValue = newRedis.ttl(key);
+            String oldValue = trimValue(cmdInfo[2]);
+            if (Long.valueOf(oldValue) - newRedisValue >= 5) {//超过1秒肯定不正常
+                printSyncResult(clientIp, cmd, key, true, oldValue, newRedisValue.toString());
+            } else {
+                printSyncResult(clientIp, cmd, key);
+            }
+        } else if ("zadd".equals(cmd)) {
+            boolean isSync = true;
+            for (int i = 2; i < cmdInfo.length; i += 2) {
+                String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
+                Double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
+                Double newRedisScore = newRedis.zscore(key, oldValue);
+                if (oldScore != newRedisScore) {
+                    isSync = false;
+                    break;
+                }
+            }
+            printSyncResult(clientIp, cmd, key, isSync, null, null);
+        } else if ("sadd".equals(cmd)) {
+            boolean isSync = true;
+            for (int i = 2; i < cmdInfo.length; i++) {
+                String oldValue = HexToCn.redisString(trimValue(cmdInfo[i]));
+                if (!newRedis.sismember(key, oldValue) && oldRedis.sismember(trimValue(cmdInfo[1]), oldValue)) {//高并发情况下可能被移出
+                    isSync = false;
+                    break;
+                }
+            }
+            printSyncResult(clientIp, cmd, key, isSync, null, null);
+        }
+    }
+
+    private static void waitMillis(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+        }
+    }
+
+    private static void printSyncResult(String clientIp, String cmd, String key) {
+        printSyncResult(clientIp, cmd, key, true);
+    }
+
+    private static void printSyncResult(String clientIp, String cmd, String key, boolean isEquals) {
+        printSyncResult(clientIp, cmd, key, isEquals, null, null);
+    }
+
+    private static void printSyncResult(String clientIp, String cmd, String key, boolean isEquals, String oldValue, String newRedisValue) {
+        if (isEquals) {
+            System.out.println("sync->clientIp:" + clientIp + " cmd:" + cmd + " key:" + key);
         } else {
-            return;
+            System.out.println("notSync->clientIp:" + clientIp + " cmd:" + cmd + " key:" + key + " oldValue:" + oldValue + "newValue:" + newRedisValue);
         }
     }
 
