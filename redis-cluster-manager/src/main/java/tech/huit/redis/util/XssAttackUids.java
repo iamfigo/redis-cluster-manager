@@ -1,4 +1,4 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisCluster;
@@ -14,10 +14,10 @@ import java.util.Set;
 
 /**
  * stage
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.XssAttackUids host=10.16.32.62 port=29440 key=/home/huit/xss-attack-show-id.txt
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar XssAttackUids host=10.16.32.62 port=29440 key=/home/huit/xss-attack-show-id.txt
  *
  * prod
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.XssAttackUids host=10.17.22.4 port=29000 key=/home/huit/xss-attack-show-id.txt
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar XssAttackUids host=10.17.22.4 port=29000 key=/home/huit/xss-attack-show-id.txt
  *
  * @author huit
  */

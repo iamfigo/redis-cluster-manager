@@ -1,4 +1,4 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import com.alibaba.fastjson.JSONObject;
 import redis.clients.jedis.*;
@@ -10,13 +10,13 @@ import java.util.Set;
 
 /**
  * stage
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.ZsetExport host=10.16.32.62 port=29440 key=u_f_93679013 exportType=csv,json
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar ZsetExport host=10.16.32.62 port=29440 key=u_f_93679013 exportType=csv,json
  * <p>
  * prod
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.ZsetExport host=10.17.22.4 port=29000 key=u_f_97005914 exportType=csv
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.ZsetExport host=10.17.22.4 port=29000 key=u_f_79247828 exportType=csv
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.ZsetExport host=10.17.22.4 port=29000 key=u_f_89564771 exportType=csv
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.ZsetExport host=10.17.22.4 port=29000 key=u_f_93679013 exportType=csv
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar ZsetExport host=10.17.22.4 port=29000 key=u_f_97005914 exportType=csv
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar ZsetExport host=10.17.22.4 port=29000 key=u_f_79247828 exportType=csv
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar ZsetExport host=10.17.22.4 port=29000 key=u_f_89564771 exportType=csv
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar ZsetExport host=10.17.22.4 port=29000 key=u_f_93679013 exportType=csv
  *
  * @author huit
  */

@@ -1,4 +1,4 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisCluster;
@@ -12,7 +12,7 @@ import java.util.*;
 
 /**
  * 根据指定的文件统计是否关注
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.AttetionCheck host=172.20.16.48 port=5001 key=/uid.txt uid=7114937
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar AttetionCheck host=172.20.16.48 port=5001 key=/uid.txt uid=7114937
  *
  * @author huit
  */

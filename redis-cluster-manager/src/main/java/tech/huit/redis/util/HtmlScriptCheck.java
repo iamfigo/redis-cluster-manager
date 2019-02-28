@@ -1,4 +1,4 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import redis.clients.jedis.*;
 
@@ -6,8 +6,8 @@ import java.io.*;
 import java.util.*;
 
 /**
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.HtmlScriptCheck host=172.20.16.48 port=5001
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.HtmlScriptCheck host=10.16.32.62 port=29440 notSecure=eval,script isReplace=true offset=
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar HtmlScriptCheck host=172.20.16.48 port=5001
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar HtmlScriptCheck host=10.16.32.62 port=29440 notSecure=eval,script isReplace=true offset=
  *
  * @author huit
  */

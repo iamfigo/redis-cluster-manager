@@ -1,7 +1,6 @@
 package me.showstone.redis;
 
-import com.alibaba.fastjson.JSONObject;
-import com.huit.util.SystemConf;
+import tech.huit.redis.util.SystemConf;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.JedisPoolConfig;

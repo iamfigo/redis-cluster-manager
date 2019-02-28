@@ -1,11 +1,11 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import redis.clients.jedis.*;
 
 import java.util.Map;
 
 /**
- * 使用方法：java -cp redis-newRedis-manager-jar-with-dependencies.jar com.huit.util.DataMigrationSingleDoubleWriteCheck args
+ * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar tech.huit.redis.util.DataMigrationSingleDoubleWriteCheck args
  * 数据从单实例迁移到单实例数据双写一致性检查工具
  * 已知问题：
  * 1.由于存在时间差，高频操作的数据可能存比较错误，可以用DataMigrationSingleValueCheck工具人多确认几次看是否同步

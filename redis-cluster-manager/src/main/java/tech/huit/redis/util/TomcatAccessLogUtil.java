@@ -1,4 +1,4 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import java.io.*;
 import java.text.DecimalFormat;
@@ -7,9 +7,9 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.TomcatAccessLogUtil key=‪D://tomcat_acclesss_log.txt maxCountLine=1000 showTop=100
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.TomcatAccessLogUtil key=/home/jm/tomcat/logs/access_log.txt maxCountLine=1000 showTop=100
- * java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.TomcatAccessLogUtil key=/home/jm/tomcat/logs/localhost_access_log.2017-02-14.txt maxCountLine=100000 showTop=100
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar TomcatAccessLogUtil key=‪D://tomcat_acclesss_log.txt maxCountLine=1000 showTop=100
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar TomcatAccessLogUtil key=/home/jm/tomcat/logs/access_log.txt maxCountLine=1000 showTop=100
+ * java -cp redis-cluster-manager-jar-with-dependencies.jar TomcatAccessLogUtil key=/home/jm/tomcat/logs/localhost_access_log.2017-02-14.txt maxCountLine=100000 showTop=100
  *
  * @author huit
  */

@@ -1,4 +1,4 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 
 /**

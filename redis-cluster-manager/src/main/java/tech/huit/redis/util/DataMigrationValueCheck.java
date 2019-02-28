@@ -1,15 +1,14 @@
-package com.huit.util;
+package tech.huit.redis.util;
 
 import redis.clients.jedis.*;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigrationValueCheck args
+ * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar DataMigrationValueCheck args
  * 数据从单实例迁移到集群数据数据迁移完之后一致性检查工具
  * redisHost=10.0.6.200 单机IP
  * redisPort=6380 单机端口
