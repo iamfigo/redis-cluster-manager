@@ -2,10 +2,7 @@ package com.huit.util;
 
 import redis.clients.jedis.*;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 使用方法：java -cp redis-newRedis-manager-jar-with-dependencies.jar com.huit.util.DataMigrationSingleDoubleWriteCheck args
@@ -110,19 +107,19 @@ public class DataMigrationSingleDoubleWriteCheck {
                     String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
                     String newValue = newRedisValue.get(trimValue(cmdInfo[i]));
                     if (!oldValue.equals(newValue)) {
-                        System.out.println("notSync:data:" + data + "->old:" + oldValue + " new:" + newValue);
+                        System.out.println("notSync->key:" + oldKey + " oldValue:" + oldValue + " newValue:" + newRedisValue);
                         return;
                     }
                 }
 
-                System.out.println("sync:" + data);
+                System.out.println("sync->key:" + oldKey);
             } else if ("del".equals(cmd)) {
                 String newRedisValue = newRedis.type(newRedisKey);
                 if (!"none".equals(newRedisValue)) {//没有被删除
-                    System.out.println("notSync:" + data + "->newRedisValue:" + newRedisValue);
+                    System.out.println("notSync->key:" + oldKey + " oldValue:none" + " newValue:" + newRedisValue);
                     return;
                 } else {
-                    System.out.println("sync:" + data);
+                    System.out.println("sync->key:" + oldKey);
                 }
             } else if ("set".equals(cmd) || "setnx".equals(cmd)) {
                 boolean isEquals = false;
@@ -148,14 +145,10 @@ public class DataMigrationSingleDoubleWriteCheck {
             } else if ("expire".equals(cmd)) {
                 Long newRedisValue = newRedis.ttl(newRedisKey);
                 String oldValue = trimValue(cmdInfo[2]);
-                if (-2 == newRedisValue) {//没有key
-                    System.out.println("keyNotExist:" + data);
-                    return;
-                }
-                if (Long.valueOf(oldValue) - newRedisValue >= 5) {//超过一1秒肯定不正常
-                    System.out.println("notSync:" + data + "->newRedisValue:" + newRedisValue);
+                if (Long.valueOf(oldValue) - newRedisValue >= 5) {//超过1秒肯定不正常
+                    System.out.println("notSync->key:" + oldKey + " oldTtl:" + oldValue + " newTtl:" + newRedisValue);
                 } else {
-                    System.out.println("sync:" + data);
+                    System.out.println("sync->key:" + oldKey);
                 }
             } else if ("zadd".equals(cmd)) {
                 boolean isSync = true;
@@ -169,9 +162,9 @@ public class DataMigrationSingleDoubleWriteCheck {
                     }
                 }
                 if (!isSync) {
-                    System.out.println("notSync:" + data);
+                    System.out.println("notSync->key:" + oldKey);
                 } else {
-                    System.out.println("sync:" + data);
+                    System.out.println("sync->key:" + oldKey);
                 }
             } else if ("sadd".equals(cmd)) {
                 boolean isSync = true;
@@ -183,9 +176,9 @@ public class DataMigrationSingleDoubleWriteCheck {
                     }
                 }
                 if (!isSync) {
-                    System.out.println("notSync:" + data);
+                    System.out.println("notSync->key:" + oldKey);
                 } else {
-                    System.out.println("sync:" + data);
+                    System.out.println("sync->key:" + oldKey);
                 }
             }
         } else {
