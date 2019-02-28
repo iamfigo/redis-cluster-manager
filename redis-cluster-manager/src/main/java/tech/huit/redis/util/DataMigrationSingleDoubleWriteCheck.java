@@ -1,7 +1,4 @@
 package tech.huit.redis.util;
-
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import redis.clients.jedis.*;
 
 import java.util.Map;
@@ -132,16 +129,6 @@ public class DataMigrationSingleDoubleWriteCheck {
             String newRedisValue = null;
             for (int i = 0; i < 5; i++) {
                 newRedisValue = newRedis.get(key);
-                if ("setnx".equals(cmd) && key.startsWith("dpm_accountStatus")) {
-                    JSONObject oldJson = JSON.parseObject(oldValue);
-                    JSONObject newJson = JSON.parseObject(newRedisValue);
-                    oldJson.remove("lastUpdatetime");
-                    newJson.remove("lastUpdatetime");
-                    if (oldJson.equals(newJson)) {
-                        isEquals = true;
-                        break;
-                    }
-                }
                 if (oldValue.equals(newRedisValue)) {
                     isEquals = true;
                     break;
