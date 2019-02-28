@@ -8,8 +8,7 @@ import java.util.Map;
  * 使用方法：java -cp redis-newRedis-manager-jar-with-dependencies.jar com.huit.util.DataMigrationSingleDoubleWriteCheck args
  * 数据从单实例迁移到单实例数据双写一致性检查工具
  * 已知问题：
- * 1.中文字符比较可能不成功
- * 2.由于存在时间差，高频操作的数据可能存比较错误，使用DataMigrationValueCheck工具多检测几次看是否同步
+ * 1.由于存在时间差，高频操作的数据可能存比较错误，可以人肉确认几次是否同步
  * <p>
  * 输入参数：
  * redisHost=10.0.6.200 单机IP
@@ -25,7 +24,7 @@ import java.util.Map;
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationSingleDoubleWriteCheck {
-    public static String redisHost, newRedisHost, ipFilter, keyFilter, keys, redisPwd, newRedisPwd;
+    public static String redisHost, newRedisHost, ipFilter, keyFilter, redisPwd, newRedisPwd;
     public static int redisPort, newRedisPort, monitorTime;
     public static String helpInfo = "redisHost=10.6.1.53 redisPort=6379 redisPwd=mon.wanghai newRedisHost=10.6.1.23 newRedisPort=6481 newRedisPwd=uElDG3IHZAnXhT22 ipFilter= keyFilter=dpm_ monitorTime=500";
 
@@ -38,14 +37,6 @@ public class DataMigrationSingleDoubleWriteCheck {
             args = helpInfo.split(" ");
         }
         ArgsParse.parseArgs(DataMigrationSingleDoubleWriteCheck.class, args, "newRedis", "old", "dbIndexMap");
-
-        if (null != keys) {
-            for (String s : keys.split(",")) {
-                compareData(s);
-            }
-            return;
-        }
-
 
         newRedis = new Jedis(newRedisHost, newRedisPort);
         if (null != newRedisPwd) {
@@ -88,7 +79,7 @@ public class DataMigrationSingleDoubleWriteCheck {
             cmdInfo = cmdDetail.split(" ");
         }
 
-        if (null == keys && null != ipFilter && !clientIp.startsWith(ipFilter)) {
+        if (null != ipFilter && !clientIp.startsWith(ipFilter)) {
             return;
         }
 
@@ -97,7 +88,7 @@ public class DataMigrationSingleDoubleWriteCheck {
             String oldKey = cmdInfo[1].replace("\"", "");
             String newRedisKey = oldKey;
 
-            if (null == keys && null != keyFilter && !oldKey.startsWith(keyFilter)) {
+            if (null != keyFilter && !oldKey.startsWith(keyFilter)) {
                 return;
             }
 

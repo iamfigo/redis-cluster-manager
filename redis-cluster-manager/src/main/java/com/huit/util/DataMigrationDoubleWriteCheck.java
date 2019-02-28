@@ -25,7 +25,7 @@ import java.util.*;
  * Created by huit on 2017/10/24.
  */
 public class DataMigrationDoubleWriteCheck {
-    public static String redisHost, clusterHost, ipFilter, keys;
+    public static String redisHost, clusterHost, ipFilter;
     public static int redisPort, clusterPort, monitorTime;
     /**
      * db映射成集群的前缀
@@ -46,13 +46,6 @@ public class DataMigrationDoubleWriteCheck {
         ArgsParse.parseArgs(DataMigrationDoubleWriteCheck.class, args, "cluster", "old", "dbIndexMap");
         for (Map.Entry<String, String> entry : dbMap.entrySet()) {
             dbIndexMap[Integer.valueOf(entry.getKey())] = entry.getValue();
-        }
-
-        if (null != keys) {
-            for (String s : keys.split(",")) {
-                compareData(s);
-            }
-            return;
         }
 
         Set<HostAndPort> nodes = new HashSet<HostAndPort>();
@@ -98,7 +91,7 @@ public class DataMigrationDoubleWriteCheck {
             cmdInfo = cmdDetail.split(" ");
         }
 
-        if (null == keys && null != ipFilter && !clientIp.startsWith(ipFilter)) {
+        if (null != ipFilter && !clientIp.startsWith(ipFilter)) {
             return;
         }
 
