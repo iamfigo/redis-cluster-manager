@@ -11,15 +11,17 @@ import java.util.Map;
  * 1.由于存在时间差，高频操作的数据可能存比较错误，可以用DataMigrationSingleValueCheck工具人多确认几次看是否同步
  * <p>
  * 输入参数：
- * redisHost=10.0.6.200 单机IP
- * redisPort=6380 单机端口
+ * redisHost=10.0.6.200 待迁移RedisIP
+ * redisPort=6380 待迁移Redis端口
+ * redisPwd=mon.wanghai  待迁移Redis密码
  * newRedisHost=10.0.6.200 新RedisIP
  * newRedisPort=6001 新Redis端口
+ * newRedisPwd=uElDG3IHZAnXhT22 新Redis密码
  * ipFilter=10.0.9.133 要过滤执行操作的机器IP
  * keyFilter=dpm_ 要过滤key前缀
  * monitorTime=5 监控时间单位秒
  * <p>
- * 输出结果：notSync或sync，如-> sync:1531730394.453018 [0 10.0.9.133:59118] "set" "a" "a"
+ * 输出结果：notSync或sync，如：sync->cmd:setnx key:dpm_accountInfo_200011420515_201
  * <p>
  * Created by huit on 2017/10/24.
  */
