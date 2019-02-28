@@ -1,14 +1,7 @@
 package com.huit.util;
 
-import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisCluster;
-import redis.clients.jedis.JedisPoolConfig;
-
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 使用方法：java -cp redis-cluster-manager-jar-with-dependencies.jar com.huit.util.DataMigrationSingleValueCheck args
@@ -55,7 +48,6 @@ public class DataMigrationSingleValueCheck {
             return value;
         }
     }
-
 
     public static void compareData(String keys) {
         String[] keysInfos = keys.split(",");
