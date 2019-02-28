@@ -8,7 +8,7 @@ import java.util.Map;
  * 使用方法：java -cp redis-newRedis-manager-jar-with-dependencies.jar com.huit.util.DataMigrationSingleDoubleWriteCheck args
  * 数据从单实例迁移到单实例数据双写一致性检查工具
  * 已知问题：
- * 1.由于存在时间差，高频操作的数据可能存比较错误，可以人肉确认几次是否同步
+ * 1.由于存在时间差，高频操作的数据可能存比较错误，可以用DataMigrationSingleValueCheck工具人多确认几次看是否同步
  * <p>
  * 输入参数：
  * redisHost=10.0.6.200 单机IP
@@ -58,7 +58,6 @@ public class DataMigrationSingleDoubleWriteCheck {
         }
     }
 
-
     public static void compareData(String data) {
         if ("OK".equals(data)) {
             return;
@@ -85,91 +84,90 @@ public class DataMigrationSingleDoubleWriteCheck {
 
         if (cmdInfo.length >= 2) {
             String cmd = trimValue(cmdInfo[0]).toLowerCase();
-            String oldKey = cmdInfo[1].replace("\"", "");
-            String newRedisKey = oldKey;
-
-            if (null != keyFilter && !oldKey.startsWith(keyFilter)) {
+            String key = cmdInfo[1].replace("\"", "");
+            if (null != keyFilter && !key.startsWith(keyFilter)) {
                 return;
             }
 
             if ("hmset".equals(cmd)) {
-                Map<String, String> newRedisValue = newRedis.hgetAll(newRedisKey);
+                Map<String, String> newRedisValue = newRedis.hgetAll(key);
                 for (int i = 2; i < cmdInfo.length; i += 2) {
                     String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
                     String newValue = newRedisValue.get(trimValue(cmdInfo[i]));
                     if (!oldValue.equals(newValue)) {
-                        System.out.println("notSync->key:" + oldKey + " oldValue:" + oldValue + " newValue:" + newRedisValue);
+                        System.out.println("notSync->key:" + key + " oldValue:" + oldValue + " newValue:" + newRedisValue);
                         return;
                     }
                 }
 
-                System.out.println("sync->key:" + oldKey);
+                System.out.println("sync->key:" + key);
             } else if ("del".equals(cmd)) {
-                String newRedisValue = newRedis.type(newRedisKey);
+                String newRedisValue = newRedis.type(key);
                 if (!"none".equals(newRedisValue)) {//没有被删除
-                    System.out.println("notSync->key:" + oldKey + " oldValue:none" + " newValue:" + newRedisValue);
+                    System.out.println("notSync->key:" + key + " oldValue:none" + " newValue:" + newRedisValue);
                     return;
                 } else {
-                    System.out.println("sync->key:" + oldKey);
+                    System.out.println("sync->key:" + key);
                 }
             } else if ("set".equals(cmd) || "setnx".equals(cmd)) {
                 boolean isEquals = false;
                 String oldValue = HexToCn.redisString(trimValue(cmdInfo[2]));
                 String newRedisValue = null;
-                for (int i = 0; i < 3; i++) {
-                    newRedisValue = newRedis.get(newRedisKey);
+                for (int i = 0; i < 10; i++) {
+                    newRedisValue = newRedis.get(key);
                     if (oldValue.equals(newRedisValue)) {
                         isEquals = true;
                         break;
                     } else {
                         try {
-                            Thread.sleep(5);
+                            Thread.sleep(20);
                         } catch (InterruptedException e) {
                         }
+                        oldValue = old.get(key);
                     }
                 }
                 if (isEquals) {
-                    System.out.println("sync->key:" + oldKey);
+                    System.out.println("sync->cmd:" + cmd + " key:" + key);
                 } else {
-                    System.out.println("notSync->key:" + oldKey + " oldValue:" + oldValue + " newValue:" + newRedisValue);
+                    System.out.println("notSync->cmd:" + cmd + " key:" + key + " oldValue:" + oldValue + "newValue:" + newRedisValue);
                 }
             } else if ("expire".equals(cmd)) {
-                Long newRedisValue = newRedis.ttl(newRedisKey);
+                Long newRedisValue = newRedis.ttl(key);
                 String oldValue = trimValue(cmdInfo[2]);
                 if (Long.valueOf(oldValue) - newRedisValue >= 5) {//超过1秒肯定不正常
-                    System.out.println("notSync->key:" + oldKey + " oldTtl:" + oldValue + " newTtl:" + newRedisValue);
+                    System.out.println("notSync->key:" + key + " oldTtl:" + oldValue + " newTtl:" + newRedisValue);
                 } else {
-                    System.out.println("sync->key:" + oldKey);
+                    System.out.println("sync->key:" + key);
                 }
             } else if ("zadd".equals(cmd)) {
                 boolean isSync = true;
                 for (int i = 2; i < cmdInfo.length; i += 2) {
                     String oldValue = HexToCn.redisString(trimValue(cmdInfo[i + 1]));
                     Double oldScore = Double.valueOf(trimValue(cmdInfo[i]));
-                    Double newRedisScore = newRedis.zscore(newRedisKey, oldValue);
+                    Double newRedisScore = newRedis.zscore(key, oldValue);
                     if (oldScore != newRedisScore) {
                         isSync = false;
                         break;
                     }
                 }
                 if (!isSync) {
-                    System.out.println("notSync->key:" + oldKey);
+                    System.out.println("notSync->key:" + key);
                 } else {
-                    System.out.println("sync->key:" + oldKey);
+                    System.out.println("sync->key:" + key);
                 }
             } else if ("sadd".equals(cmd)) {
                 boolean isSync = true;
                 for (int i = 2; i < cmdInfo.length; i++) {
                     String oldValue = HexToCn.redisString(trimValue(cmdInfo[i]));
-                    if (!newRedis.sismember(newRedisKey, oldValue) && old.sismember(trimValue(cmdInfo[1]), oldValue)) {//高并发情况下可能被移出
+                    if (!newRedis.sismember(key, oldValue) && old.sismember(trimValue(cmdInfo[1]), oldValue)) {//高并发情况下可能被移出
                         isSync = false;
                         break;
                     }
                 }
                 if (!isSync) {
-                    System.out.println("notSync->key:" + oldKey);
+                    System.out.println("notSync->key:" + key);
                 } else {
-                    System.out.println("sync->key:" + oldKey);
+                    System.out.println("sync->key:" + key);
                 }
             }
         } else {
