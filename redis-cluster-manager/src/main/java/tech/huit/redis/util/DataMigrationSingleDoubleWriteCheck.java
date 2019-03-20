@@ -135,11 +135,13 @@ public class DataMigrationSingleDoubleWriteCheck {
                 if ("setnx".equals(cmd) && key.startsWith("dpm_accountStatus")) {
                     JSONObject oldJson = JSON.parseObject(oldValue);
                     JSONObject newJson = JSON.parseObject(newRedisValue);
-                    oldJson.remove("lastUpdatetime");
-                    newJson.remove("lastUpdatetime");
-                    if (oldJson.equals(newJson)) {
-                        isEquals = true;
-                        break;
+                    if (null != newJson) {
+                        oldJson.remove("lastUpdatetime");
+                        newJson.remove("lastUpdatetime");
+                        if (oldJson.equals(newJson)) {
+                            isEquals = true;
+                            break;
+                        }
                     }
                 }
                 if (oldValue.equals(newRedisValue)) {
